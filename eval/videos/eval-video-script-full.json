@@ -966,7 +966,7 @@
      "hold": 4
     },
     {
-     "text": "An internal arena has five models and 4,000 head-to-head votes. A researcher writes: \"Nova has the best win rate, 61 percent. It's our top model.\"",
+     "text": "An internal arena has five models and 2,080 head-to-head votes. A researcher writes: \"Nova has the best win rate, 61 percent. It's our top model.\"",
      "hold": 3.5,
      "anim": "leaderboard by raw win rate: Nova 61.2%, Atlas 60.0%, Birch 58.0%, Cedar 44.7%, Dune 32.7%"
     }
@@ -1016,7 +1016,7 @@
      "anim": "small curve of win probability against rating gap, markers at 35, 70 and 400"
     },
     {
-     "text": "Fit all 4,000 votes at once. Atlas comes out at 1094, Birch 1082, Nova 1042, Cedar 1000, and Dune 921. Nova drops to third.",
+     "text": "Fit all 2,080 votes at once. Atlas comes out at 1094, Birch 1082, Nova 1042, Cedar 1000, and Dune 921. Nova drops to third.",
      "hold": 4,
      "anim": "leaderboard re-sorts: Atlas 1094, Birch 1082, Nova 1042, Cedar 1000, Dune 921"
     },
