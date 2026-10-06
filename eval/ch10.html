@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Many comparisons · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1
+id="fifty-benchmarks-twenty-checkpoints-the-multiple-comparisons-problem">Fifty
+benchmarks, twenty checkpoints: the multiple comparisons problem</h1>
+<div class="when"><b>Use this when</b>You look at many numbers at once (benchmarks × checkpoints, slices, regression alerts) and some will move by chance. Bonferroni, Holm, Benjamini-Hochberg.</div>
+<p>An evaluation platform at a lab does not run one test. It runs dozens
+of benchmarks on every checkpoint of every run, and dashboards colour
+each cell green or red depending on whether it moved. That is a machine
+for producing false discoveries, and the people who look at it are the
+researchers deciding where the next training run’s compute goes. This
+chapter is about the statistics of looking at many numbers at once, and
+about the design choices that keep a dashboard honest.</p>
+<h2 id="the-problem">The problem</h2>
+<p>Suppose a new checkpoint is evaluated on 40 benchmarks, and in truth
+it is exactly as good as its predecessor on all of them. Each benchmark
+comparison is run as a paired test at α = 0.05. How many cells do you
+expect to light up as “significant”? Think about it before reading
+on.</p>
+<h2 id="the-naive-expectation-and-why-it-fails">The naive expectation,
+and why it fails</h2>
+<p>Each test individually has a 5 percent chance of a false positive.
+Across 40 independent tests you should expect two false alarms on
+average, and the probability that at least one cell lights up is 1 −
+0.95⁴⁰, which is 87 percent. So on a dashboard of 40 benchmarks, a
+checkpoint that changed nothing will almost always show at least one
+“significant” improvement or regression, and a researcher looking for
+good news will find it. Multiply by twenty checkpoints and a handful of
+model variants and the dashboard will show dozens of significant cells
+every week from noise alone.</p>
+<p>This is the multiple comparisons problem, and it has a famous
+informal cousin, the “garden of forking paths” (Gelman and Loken’s
+phrase): even when only one test is formally run, an analyst who chose
+which benchmark, which metric, which subset and which prompt template to
+report after seeing the data has implicitly run many. Eval culture is
+unusually exposed to this because there are so many free choices:
+few-shot count, chat template, temperature, answer-extraction regex,
+whether to count truncated answers as wrong. A model team that tries six
+prompt formats and reports the best one has inflated its result whether
+or not it meant to.</p>
+<h2
+id="controlling-the-family-wise-error-rate-bonferroni-and-holm">Controlling
+the family-wise error rate: Bonferroni and Holm</h2>
+<p>The oldest fix is Bonferroni: if you run m tests and want the
+probability of even one false positive across all of them to stay below
+α, test each one at α / m. With 40 benchmarks, each individual
+comparison needs p &lt; 0.00125. It is simple, it is always valid, and
+it is very conservative, because it guards against the worst case where
+every test is independent and null.</p>
+<p>Holm’s method is strictly better and only slightly more work, so it
+is the one to name. Sort the m p-values from smallest to largest.
+Compare the smallest to α / m, the next to α / (m − 1), the next to α /
+(m − 2), and so on, stopping at the first one that fails; everything
+before the stop is significant. It controls the same family-wise error
+rate as Bonferroni but rejects more often when several effects are
+real.</p>
+<h2
+id="controlling-the-false-discovery-rate-benjamini-hochberg">Controlling
+the false discovery rate: Benjamini-Hochberg</h2>
+<p>For an eval dashboard, the family-wise error rate is usually the
+wrong target. Researchers can live with a few false leads among many
+true ones; what they cannot live with is a list of “significant” changes
+that is mostly noise. The false discovery rate (FDR) captures that: of
+the comparisons flagged as significant, what fraction are false?</p>
+<p>The Benjamini-Hochberg procedure controls FDR at a chosen level q,
+say 10 percent. Sort the p-values ascending; find the largest rank i for
+which p₍ᵢ₎ ≤ (i / m) × q; flag everything up to and including that rank.
+Intuitively, the threshold loosens as you go down the list, because if
+many small p-values are present, a few real effects are likely and the
+procedure lets more through. For a dashboard that runs dozens of
+benchmarks per checkpoint, Benjamini-Hochberg at q = 0.05 or 0.10 is a
+sensible default for what gets coloured.</p>
+<figure>
+<img src="img/fig-10-1.png" alt="Three ways to decide which of 40 benchmark changes to believe.">
+<figcaption>
+Figure 10.1. Three ways to decide which of 40 benchmark changes to
+believe.
+</figcaption>
+</figure>
+<h2 id="what-a-principal-engineer-does-with-this">What a principal
+engineer does with this</h2>
+<p>Knowing the procedures is the easy part. The platform-level answer an
+interviewer wants is about where the corrections live and how to make
+good behaviour the default. Several design choices follow.</p>
+<p>The first is to pre-register the decision metrics. Before a training
+run, the team names a small set of headline benchmarks that will decide
+checkpoint promotion, perhaps five, with their configs frozen. Those get
+tested at full rigour. Everything else on the dashboard is exploratory,
+labelled as such, and corrected for multiplicity. This is how clinical
+trials avoid the garden of forking paths, and it maps directly onto how
+training teams should use evals.</p>
+<p>The second is to freeze and version everything that is a free choice:
+prompt template, few-shot exemplars and their order, sampling
+parameters, answer extractor, grader version, and the dataset revision.
+When any of these changes, the result is a new benchmark version and old
+numbers are not compared against new ones. Many published discrepancies
+between labs on the same benchmark come down to exactly these
+choices.</p>
+<p>The third is to put the uncertainty in the visual, not in a footnote.
+A dashboard cell should show the paired difference with its confidence
+interval, coloured only when a corrected test says so, and greyed when
+the benchmark is too small to detect the effect sizes in play. That
+single change does more to stop researchers chasing noise than any
+training session on p-values.</p>
+<p>The fourth is to aggregate thoughtfully. Many labs combine benchmarks
+into a composite score per capability (maths, coding, reasoning,
+knowledge, safety). A composite has far less multiplicity than its parts
+and usually more signal, but it hides regressions; a good platform shows
+the composite as the headline and lets anyone drill down, with the
+drill-down corrected.</p>
+<h2 id="regressions-are-a-multiple-comparison-problem-too">Regressions
+are a multiple-comparison problem too</h2>
+<p>The same logic applies to the monitoring side of an eval platform,
+often called detecting “evaluation degradation”. If you alert whenever
+any of 40 benchmarks drops by more than its 95 percent interval, you
+will page someone most days for nothing. Alerting rules for eval scores
+therefore look more like anomaly detection on a time series than like a
+single hypothesis test: compare against the expected range for that
+benchmark given its historical run-to-run variance, require the drop to
+persist across consecutive checkpoints or to appear on a pinned
+reference model (which isolates infrastructure changes from model
+changes), and route infrastructure-shaped anomalies (a benchmark goes to
+exactly zero, or all benchmarks move together) differently from
+model-shaped ones. Chapter 5 develops this.</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>Run forty tests at α = 0.05 on a model that changed nothing and you
+will see at least one “significant” result 87 percent of the time.
+Bonferroni (divide α by the number of tests) or, better, Holm controls
+the chance of any false positive; Benjamini-Hochberg controls the
+fraction of flagged results that are false and is usually the right
+default for a dashboard. The bigger wins are structural: pre-register a
+few decision metrics, version every free choice so that numbers are only
+compared like for like, show intervals rather than bare deltas, and
+design regression alerts as time-series anomaly detection rather than
+one test per cell.</p>
+
+<nav class="pn"><a href="ch09.html">← Power, sample size, pass@k</a><a href="ch11.html">Judges, agreement, rankings →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

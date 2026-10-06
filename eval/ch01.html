@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What evals are for · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1 id="what-evaluations-are-for-inside-a-model-lab">What evaluations
+are for inside a model lab</h1>
+<div class="when"><b>Use this when</b>You need the big picture: who consumes eval results, which decisions they drive, and what makes an eval platform good.</div>
+<p>Most people who say “evals” mean a leaderboard number in a model
+card. Eval platform engineering is about something much less glamorous
+and much more consequential: the machinery that tells a training team,
+every few hours, whether the run that is burning thousands of GPUs is
+going the right way. Before any architecture or statistics, it is worth
+being clear about who consumes evaluation results inside a lab, what
+decisions those results drive, and therefore what “good” means for the
+platform. That framing is what will make your answers sound like a
+principal engineer’s rather than a benchmark enthusiast’s.</p>
+<h2 id="four-consumers-four-kinds-of-eval">Four consumers, four kinds of
+eval</h2>
+<p>Think of an eval platform at a frontier lab as serving four groups,
+each with different needs for speed, cost and rigour.</p>
+<p>The first is the pretraining team. A large pretraining run lasts
+weeks to months and writes a checkpoint every few hundred or thousand
+steps. The team needs a cheap, fast, low-noise read on every checkpoint:
+is loss on held-out data still falling, are capability evals trending as
+expected, did anything break (a data-loader bug, a bad data shard, a
+numerical instability) that shows up as a sudden drop? These in-training
+evals have to keep pace with checkpoint production, so they are small,
+mostly likelihood-based (Chapter 9 explained why continuous metrics
+carry more signal early), and they run continuously. A pretraining team
+also runs dozens of small-scale ablations to decide data mixtures and
+hyperparameters, and evals on those small models are how they choose
+what goes into the big run. Here the statistics of Part II stop being
+academic: if the eval suite cannot tell two ablations apart, the lab is
+choosing its training recipe by coin toss.</p>
+<p>The second is the post-training team, which turns a base model into a
+chat or reasoning model through supervised fine-tuning, preference
+optimisation and reinforcement learning. Their evals are generative (the
+model writes long answers, often with chains of thought tens of
+thousands of tokens long), include instruction-following, maths, coding,
+agentic tasks, safety and style, and lean heavily on graders that
+execute code or call a judge model. RL training adds a twist that
+matters for this job: the graders used to compute rewards during
+training and the graders used for evaluation are often the same code,
+which means a grader bug can silently corrupt both the training signal
+and the measurement of it. This overlap is why eval platform roles often
+sit next to RL training infrastructure.</p>
+<p>The third is the people deciding what ships: release managers, safety
+teams and leadership deciding whether a checkpoint is promoted to a
+product. Their evals are the full suite at full rigour, with frozen
+configs, confidence intervals, comparisons against the incumbent model
+and against competitors, and safety and policy evaluations that may have
+formal sign-off requirements.</p>
+<p>The fourth is the product team, measuring the model inside Copilot or
+another surface with online A/B tests and product-specific offline sets.
+At many labs this is a separate stack, but the eval platform will be
+asked to run their offline sets too.</p>
+<figure>
+<img src="img/fig-1-1.png" alt="Who consumes evaluations, and which decision each one drives.">
+<figcaption>
+Figure 1.1. Who consumes evaluations, and which decision each one
+drives.
+</figcaption>
+</figure>
+<h2 id="what-good-means-for-an-eval-platform">What “good” means for an
+eval platform</h2>
+<p>It helps to have a crisp set of properties you can name when an
+interviewer asks what makes an evaluation platform good. Six cover
+nearly everything.</p>
+<p>Correctness comes first, because a wrong eval number is worse than no
+number: researchers will act on it. Correctness means graders that are
+tested, configs that are versioned, and results that can be traced to
+exactly what produced them. Reproducibility follows: rerunning the same
+eval on the same checkpoint should give the same answer, or at least an
+answer within known noise, which requires pinning the dataset revision,
+the prompt template, the sampling parameters, the inference engine
+version and the grader version. Statistical honesty is the third:
+results come with uncertainty, comparisons are paired, and the platform
+makes the noise visible rather than letting researchers chase it.
+Freshness is fourth: results must arrive while they can still change a
+decision, which for in-training evals means keeping up with checkpoint
+cadence and for ablations means turning a sweep around in hours, not
+days. Efficiency is fifth: eval compute competes with training compute,
+and at frontier scale the evaluation bill is a real line item, so
+throughput per GPU-hour matters. Operability is last: when something
+breaks at 3am, or on a busy Monday morning, the on-call engineer can see
+what broke, why, and what to do, which is what people mean by
+dashboards, alerts and runbooks.</p>
+<p>Every chapter in Part I maps to one or two of these. Chapter 2 is
+about the architecture that makes correctness and reproducibility
+possible. Chapter 3 is about graders, where most correctness bugs live.
+Chapter 4 is about freshness and efficiency. Chapter 5 is about
+operability and the specific ways evaluation degrades. Chapter 6
+assembles them into the answer you would give to “design an evaluation
+platform for a frontier lab”.</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>An evaluation platform in a lab serves pretraining (cheap,
+continuous, low-noise checks on every checkpoint and on small
+ablations), post-training (generative, judge- and execution-graded,
+often sharing graders with RL rewards), release decisions (full frozen
+suite with uncertainty) and product teams. Eval platform engineering is
+reliability and platform engineering for that system, with eval
+knowledge as the differentiator, not the core. A good platform is
+correct, reproducible, statistically honest, fresh, efficient and
+operable, and in an interview you should be able to name those six and
+show how each design choice serves one of them.</p>
+
+<nav class="pn"><span></span><a href="ch02.html">Anatomy of an eval →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

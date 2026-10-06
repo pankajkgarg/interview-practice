@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A score is an estimate · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1 id="a-benchmark-score-is-an-estimate">A benchmark score is an
+estimate</h1>
+<div class="when"><b>Use this when</b>You report any single number: a benchmark score, a pass rate on a slice, a judge&#x27;s mean score. It answers &quot;how precise is this?&quot; with standard errors, Wilson intervals, the bootstrap and clustered questions.</div>
+<p>Start with the question that sits under every other one in this part
+of the book. A researcher pings you on a Tuesday morning: the new
+checkpoint scores 72.0 percent on a 500-question reasoning benchmark,
+last week’s scored 70.4, and they want to know whether the data-mixture
+change worked. Before you can say anything useful, you have to be clear
+about what the number 72.0 actually is. It is not a property of the
+model in the way that a parameter count is. It is a measurement, taken
+by asking the model a particular sample of questions, once each, with a
+particular sampler, and the measurement would come out differently if
+any of those choices changed. Every statistical tool in the next five
+chapters is a way of answering one question: how differently?</p>
+<h2 id="two-sources-of-randomness">Two sources of randomness</h2>
+<p>There are two independent reasons the score wobbles, and it pays to
+keep them apart in your head because they call for different fixes.</p>
+<p>The first is the question sample. The 500 questions in the benchmark
+are a draw from some much larger space of questions of that type. If
+someone had written a different 500 questions of the same style and
+difficulty, the model would have scored a little higher or lower. This
+is the variance that statisticians mean by “sampling error”, and it is
+the one that dominates for small benchmarks. You cannot reduce it by
+rerunning the model; only more questions shrink it.</p>
+<p>The second is the model’s own randomness. If you sample at
+temperature 0.7, or if your inference stack is not bit-for-bit
+deterministic (it usually is not; batch composition changes
+floating-point reduction order, which flips a few greedy tokens), then
+asking the same question twice can give a right answer once and a wrong
+one the next time. This variance does shrink if you ask each question
+several times and average. Evan Miller’s paper “Adding Error Bars to
+Evals” (Anthropic, November 2024) is the clearest treatment of how the
+two combine, and it is worth reading in full once; this chapter follows
+its logic.</p>
+<h2 id="the-standard-error-of-a-pass-rate">The standard error of a pass
+rate</h2>
+<p>Treat each question as a coin flip that comes up “correct” with
+probability equal to the model’s true accuracy p. The score you observe,
+p̂, is the average of n such flips. The spread of that average across
+hypothetical reruns of the whole experiment is its standard error:</p>
+<p>SE = √( p̂ (1 − p̂) / n )</p>
+<p>For your 72.0 percent on 500 questions, that is √(0.72 × 0.28 / 500)
+= 0.020, or 2.0 percentage points. Notice what this says. A single
+number reported as “72.0” carries an uncertainty of about two points in
+each direction from question sampling alone. The previous checkpoint’s
+70.4 is well inside that range. You have not yet learned whether the
+mixture change did anything.</p>
+<p>The reason the formula has that shape is worth thirty seconds,
+because it is what you reconstruct in an interview when you cannot
+remember the formula. A single coin with probability p has variance p(1
+− p), which is largest at p = 0.5 (variance 0.25) and shrinks toward
+zero as p approaches 0 or 1, because a coin that almost always lands the
+same way barely varies. Averaging n independent coins divides the
+variance by n, so the standard deviation of the average falls as
+1/√n. That square root is the most important fact in evaluation
+statistics: to halve your error bars you need four times as many
+questions. Going from 500 to 2,000 questions takes the 2.0-point
+standard error down to 1.0.</p>
+<figure>
+<img src="img/fig-7-1.png" alt="Error bars shrink with the square root of the number of questions: four times the questions for half the uncertainty.">
+<figcaption>
+Figure 7.1. Error bars shrink with the square root of the number of
+questions: four times the questions for half the uncertainty.
+</figcaption>
+</figure>
+<h2 id="from-standard-error-to-a-confidence-interval">From standard
+error to a confidence interval</h2>
+<p>Because a sum of many independent coin flips is approximately
+normally distributed (this is the central limit theorem doing its job),
+about 95 percent of hypothetical reruns land within 1.96 standard errors
+of the true value. Flip that around and you get the familiar 95 percent
+confidence interval: p̂ ± 1.96 × SE. For the 72.0 percent score, that is
+68.1 to 75.9 percent.</p>
+<p>The phrase “95 percent confidence interval” is routinely misread,
+including by people who build eval dashboards for a living, so be
+precise about it. It does not mean there is a 95 percent probability
+that the true accuracy lies in 68.1 to 75.9. The true accuracy is a
+fixed number; it either is in the interval or it is not. What the 95
+percent describes is the procedure: if you repeated the whole experiment
+many times with fresh question samples and built an interval each time,
+about 95 percent of those intervals would contain the truth. In practice
+the misreading rarely leads anyone astray, but an interviewer who knows
+statistics will notice which version you say.</p>
+<p>This simple recipe, called the Wald interval, has a known failure
+that matters a great deal for LLM evaluation, because LLM benchmarks are
+so often either tiny or near the ceiling. When p̂ is close to 0 or 1, or
+n is small, the normal approximation is poor and the Wald interval can
+extend past the possible range. Take a model that solves 1 of 30 AIME
+problems. The Wald interval is 3.3 ± 6.4 percent, so its lower end is
+−3.1 percent, which is nonsense. And when the model solves 0 of 30, the
+Wald standard error is exactly zero, so the interval collapses to a
+single point and claims perfect certainty that the model can never solve
+one of these problems.</p>
+<p>The fix that most practitioners should default to is the Wilson score
+interval. Instead of centring on p̂ and assuming the spread is √(p̂(1 −
+p̂)/n), it asks which values of p would make the observed count
+plausible, which pulls the interval slightly toward 50 percent and keeps
+it inside [0, 1]. For 1 of 30 it gives 0.6 to 16.7 percent, which is
+honest: one success in thirty tells you very little. For your 360 of 500
+it gives 67.9 to 75.8 percent, almost identical to Wald, which is the
+general pattern: with a few hundred questions and accuracy away from the
+extremes, all methods agree, and the choice only matters at the edges.
+The Clopper-Pearson “exact” interval is the conservative alternative,
+built from the binomial distribution directly; it guarantees at least 95
+percent coverage and is therefore usually a bit wider than necessary. If
+someone asks which you use, “Wilson by default, Clopper-Pearson when I
+need a guarantee, bootstrap when the metric is not a simple proportion”
+is a principal-level answer.</p>
+<h2 id="the-bootstrap-for-everything-that-is-not-a-pass-rate">The
+bootstrap, for everything that is not a pass rate</h2>
+<p>Many eval metrics are not simple proportions. A code benchmark might
+report the mean of per-problem partial credit; a summarisation eval
+might report an average judge score from 1 to 10; an agentic benchmark
+might report a median number of steps; an overall leaderboard number
+might be a weighted average across twelve sub-benchmarks. For these
+there is often no neat formula, and the bootstrap is the general-purpose
+tool.</p>
+<p>The idea is simple enough to implement in an interview in five lines.
+You have n per-question results. Pretend those n results are the whole
+population, and draw a new sample of n from them with replacement, so
+that some questions appear twice and some not at all. Compute your
+metric on the resample. Do this 10,000 times. The spread of the 10,000
+resampled metrics approximates the sampling distribution of your metric,
+and its 2.5th and 97.5th percentiles form a 95 percent “percentile
+bootstrap” interval. Nothing about the metric needs to be known; the
+bootstrap only needs the per-question results and the function that
+turns them into a score.</p>
+<p>Two things about the bootstrap are worth saying aloud in an interview
+because they show you have used it rather than read about it. First, you
+resample the unit that was independently sampled. If your benchmark has
+100 reading passages with five questions each, you resample passages,
+not questions, which brings us to the next section. Second, the plain
+percentile bootstrap is slightly biased for skewed metrics and small n;
+the BCa (bias-corrected and accelerated) variant fixes that and is what
+scipy.stats.bootstrap uses by default. For n in the hundreds and roughly
+symmetric metrics, the difference is small.</p>
+<h2 id="when-questions-are-not-independent">When questions are not
+independent</h2>
+<p>Every formula so far assumed the questions were independent coin
+flips. Many benchmarks violate this. Reading-comprehension sets attach
+several questions to one passage; some coding benchmarks have several
+test-derived tasks per repository; multilingual benchmarks often
+translate the same item into many languages; agent benchmarks may run
+several tasks in the same environment snapshot. Questions that share a
+passage tend to succeed or fail together, because if the model misreads
+the passage it misses all five.</p>
+<p>The consequence is that you have less information than n suggests.
+The correction is the “design effect”: with m questions per cluster and
+an intra-cluster correlation ρ (how much more alike two questions from
+the same cluster are than two random questions), the variance is
+inflated by a factor of 1 + (m − 1)ρ. With five questions per passage
+and a modest ρ of 0.2, that factor is 1.8, so your standard errors
+should be √1.8 ≈ 1.34 times wider than the naive formula says. With ρ =
+0.5 the factor is 3.0 and the true error bar is 1.7 times the naive one.
+Miller’s paper reports that on real benchmarks with clustered structure
+the naive standard error can understate the clustered one by a factor of
+three. The practical rule is to compute clustered standard errors (or to
+bootstrap over clusters) whenever the dataset has any grouping, and an
+eval platform should store the cluster id alongside each item precisely
+so that this is possible.</p>
+<h2 id="asking-each-question-more-than-once">Asking each question more
+than once</h2>
+<p>The second source of randomness, the model’s own sampling noise, adds
+variance on top of the question sampling. If each question has some
+per-question probability of being answered correctly, pᵢ, and you sample
+it once, your result for that question is a single draw from a coin with
+bias pᵢ. Sample it k times and average, and the per-question estimate
+becomes much less noisy. The total variance of the benchmark score
+splits into a between-question part (how much the pᵢ vary across
+questions, which only more questions can reduce) and a within-question
+part (the coin flip noise around each pᵢ, which falls as 1/k).</p>
+<p>This has an engineering consequence that belongs on your platform
+roadmap. For greedy decoding on a deterministic stack the
+within-question term is near zero, so resampling buys nothing. For
+reasoning models sampled at temperature 0.6 to 1.0, which is now the
+norm, it is often substantial, and for small benchmarks like AIME the
+standard practice has become to report “avg@k” or “mean@16”, the average
+over 16 or 32 samples per problem. Each additional sample costs
+inference compute, so the right k is a throughput question as much as a
+statistical one: past the point where the within-question variance is
+small relative to the between-question variance, more samples are wasted
+GPU time. A good platform makes k a per-benchmark config value and
+reports the two variance components separately, so researchers can see
+which one dominates.</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>A benchmark score is an estimate with a standard error of roughly
+√(p(1 − p)/n), which is about two points for 500 questions at 70 percent
+accuracy and sixteen points for a 30-question benchmark. Report it with
+an interval: Wilson for pass rates, bootstrap for anything else, and
+clustered when questions share a passage or environment. Error bars
+shrink with the square root of the question count, so halving them costs
+four times the questions. Resampling each question k times reduces only
+the model’s own sampling noise, not the question-sampling noise, and the
+platform should make both visible. When a researcher shows you a
+1.6-point movement on a 500-question benchmark, the honest first answer
+is that a single score cannot tell you; the next chapter shows what
+can.</p>
+
+<nav class="pn"><a href="ch06.html">← Designing an eval platform</a><a href="ch08.html">Comparing two models →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

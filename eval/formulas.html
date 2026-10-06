@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formulas on one page · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1 id="the-statistics-on-one-page">The statistics on one page</h1>
+<div class="when"><b>Use this when</b>The night before: every tool in one line, with its example number.</div>
+<p>This page is for the night before. Each line is the tool, when to
+reach for it, and the number from the book’s running example so you can
+check your memory.</p>
+<p><strong>Standard error of a pass rate.</strong> √(p(1 − p)/n). At 72
+percent on 500 questions: 2.0 points. Halving it takes four times the
+questions.</p>
+<p><strong>95 percent interval.</strong> p̂ ± 1.96 SE (Wald) is fine for
+a few hundred items away from 0 or 100 percent: 68.1 to 75.9 percent.
+Use Wilson by default (67.9 to 75.8 percent), and always near the
+extremes: 1 of 30 gives 0.6 to 16.7 percent where Wald gives a negative
+lower bound. Clopper-Pearson when you need guaranteed coverage.</p>
+<p><strong>Bootstrap.</strong> Resample the independent units with
+replacement 10,000 times, recompute the metric, take the 2.5th and
+97.5th percentiles. Works for any metric. Resample clusters (passages,
+repos, environments), not items, when items share them.</p>
+<p><strong>Design effect for clustered items.</strong> Variance
+multiplies by 1 + (m − 1)ρ. Five questions per passage at ρ = 0.2: 1.8
+times the variance, 1.34 times the error bar.</p>
+<p><strong>Comparing two models on the same items.</strong> Pair them.
+McNemar on the discordant counts b and c: exact binomial test of b
+against b + c at one half. Running example: 40 versus 55 gives p = 0.15,
+where the unpaired test on the same data gives 0.28. Paired SE of the
+difference: 1.95 points versus 2.8 unpaired.</p>
+<p><strong>Continuous per-item scores.</strong> Paired t-test on
+differences, or paired bootstrap, or permutation test (swap labels
+within items).</p>
+<p><strong>p-value.</strong> Probability of data at least this extreme
+if the null were true. Not the probability the null is true. Says
+nothing about effect size. Lead with the confidence interval on the
+difference.</p>
+<p><strong>Minimum detectable effect.</strong> About 2.8 standard errors
+of the difference (α = 0.05 two-sided, 80 percent power). Paired with
+discordance rate r: 2.8 √(r/n). At r = 0.2, detecting 2 points needs
+about 4,000 items; unpaired at 70 percent accuracy, about 8,000.</p>
+<p><strong>pass@k.</strong> Generate n &gt; k samples, count c correct,
+per problem 1 − C(n − c, k)/C(n, k), averaged over problems. n = 20, c =
+3: pass@1 0.15, pass@5 0.60. Never 1 − (1 − p)^k across a benchmark. Ask
+whether people mean pass@k, avg@k or maj@k.</p>
+<p><strong>Multiple comparisons.</strong> Forty null tests at 0.05: 87
+percent chance of at least one false positive. Bonferroni α/m; Holm
+(sorted, α/m, α/(m − 1), …) is uniformly better; Benjamini-Hochberg
+(largest i with p₍ᵢ₎ ≤ iq/m) controls the false discovery rate and suits
+dashboards.</p>
+<p><strong>Cohen’s kappa.</strong> (observed − chance)/(1 − chance). 80
+percent agreement with 54.4 percent chance gives 0.56, “moderate”.
+Collapses when one class is rare: 92 percent agreement, kappa 0.29.
+Report the confusion matrix and per-class recall beside it. Measure
+human-human agreement first; it is the ceiling.</p>
+<p><strong>Bradley-Terry / Elo.</strong> P(i beats j) = 1/(1 + e^−(sᵢ −
+sⱼ)). 400 Elo points = 10:1 odds; 60 percent win rate ≈ 70 points; 55
+percent ≈ 35. Fit all votes at once, bootstrap intervals, show rank
+ranges.</p>
+<p><strong>Online tests.</strong> Randomise by user, analyse at user
+level, reduce variance with CUPED, do not peek without a sequential
+method.</p>
+
+<nav class="pn"><a href="ch12.html">← Benchmarks wear out</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

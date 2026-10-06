@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmarks wear out · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1
+id="benchmarks-wear-out-contamination-saturation-efficient-evaluation-and-online-tests">Benchmarks
+wear out: contamination, saturation, efficient evaluation and online
+tests</h1>
+<div class="when"><b>Use this when</b>A benchmark might be leaked or saturated, you want a cheaper subset, or you are measuring with live users (A/B tests).</div>
+<p>The previous chapters took the benchmark as given and asked how to
+read its numbers. This one turns the question around: when is the
+benchmark itself the problem? Four failure modes come up again and again
+in conversations with eval teams, and each has a recognisable signature
+and a standard response. The chapter ends with the other half of
+evaluation, measuring a model in front of real users, where the
+statistics are the familiar A/B-testing kind.</p>
+<h2 id="contamination">Contamination</h2>
+<p>A benchmark measures generalisation only if the model has not seen
+the test questions during training. Pretraining corpora are scraped from
+the web, and popular benchmarks are on the web, often with answers, in
+GitHub repos, blog posts, and forum threads discussing them. So
+contamination is the default, not the exception, and its signature is a
+model that scores conspicuously better on the public test set than on
+fresh questions of the same kind.</p>
+<p>There are three families of defence, and you should be able to name
+all three. The first is detection in the training data: n-gram overlap
+between benchmark items and the training corpus (the GPT-3 and Llama
+papers used 13-gram and similar overlaps), which a training-data team
+can run if they have the corpus indexed. The second is detection from
+the model’s behaviour: does the model assign suspiciously high
+likelihood to the exact benchmark text, can it complete a question
+verbatim from its first half, does it do better on canonical answer
+orderings than on shuffled ones, does it reproduce the specific wrong
+answers in a benchmark’s known label errors? The third, and the most
+robust, is to avoid the problem by construction: private held-out sets
+that never touch the internet, canary strings in benchmark files so that
+well-behaved crawlers can filter them (BIG-bench introduced this), and
+dynamic benchmarks that keep adding new problems dated after the model’s
+training cutoff. LiveCodeBench, for example, tags each problem with its
+contest release date so you can evaluate only on problems published
+after a model’s cutoff, and a model whose score drops sharply on
+post-cutoff problems was likely contaminated on the older ones. Scale
+AI’s GSM1k (May 2024) applied the same idea to grade-school maths: a
+freshly written, GSM8K-style set exposed accuracy drops of up to 8
+points for some model families, and the gap correlated with how likely
+the model was to generate GSM8K items verbatim.</p>
+<p>The platform implications are concrete: store the provenance and
+publication date of every item, support evaluating on date-filtered
+subsets, keep internal held-out sets access-controlled like secrets, and
+make it easy to rerun a benchmark with paraphrased or perturbed items as
+a contamination check.</p>
+<h2 id="saturation">Saturation</h2>
+<p>A benchmark saturates when frontier models score near its ceiling, at
+which point it stops separating them. MMLU went from a hard benchmark in
+2021 to near-saturated by 2024, which drove the creation of MMLU-Pro and
+GPQA, and the cycle has repeated with every generation since: GSM8K to
+MATH to AIME and FrontierMath, HumanEval to SWE-bench Verified and
+beyond. Saturation is partly the statistics of Chapter 7 in disguise.
+When accuracy approaches 100 percent, the remaining errors are often
+label errors in the benchmark itself (independent audits have found
+error rates of several percent in widely used sets), so the last few
+points measure the benchmark’s noise rather than the model.</p>
+<p>The platform response is lifecycle management. A benchmark has a
+useful life during which it discriminates between the models a team
+actually trains, and the platform should be able to show that
+discrimination, for example the spread in scores between the models
+currently in comparison relative to the run-to-run noise (the
+signal-to-noise ratio from Chapter 9). When it falls, the benchmark
+moves from the decision set to the regression-only set, which still
+catches catastrophic breakage cheaply.</p>
+<h2 id="benchmark-design-briefly">Benchmark design, briefly</h2>
+<p>Since part of the job is building “problem sets” and “benchmark
+configurations”, it helps to know what makes a good one, in the words a
+researcher would use. Validity: does a high score mean what the
+benchmark’s name claims? A “coding” benchmark of short self-contained
+functions does not measure the ability to work in a large repository.
+Reliability: is it big enough and clean enough that reruns agree, which
+is everything in Chapters 7 to 9. Discriminative power across the models
+you care about, which is the opposite of saturation. A clear,
+programmatically checkable grading rule, or a validated judge if it
+cannot be checked. And documented free choices: prompt format, few-shot
+exemplars, answer extraction, all frozen per version.</p>
+<p>A specific practical warning about answer extraction belongs here
+because it causes more silent eval bugs than anything else. A generative
+benchmark is only as good as the code that pulls the final answer out of
+the model’s text. Reasoning models write long chains of thought, put
+their final answer in varied formats, and sometimes restate intermediate
+results that a careless regex picks up. Hugging Face’s Math-Verify
+comparison found that changing only the extraction and
+equivalence-checking logic moved a MATH score by five points on
+identical model outputs (Chapter 3). Treat the extractor as code under
+test, with a unit-test suite of tricky real outputs.</p>
+<h2 id="efficient-evaluation-item-response-theory">Efficient evaluation:
+item response theory</h2>
+<p>Full benchmark suites are expensive on every checkpoint, so it is
+natural to ask whether a well-chosen subset gives almost the same
+answer. Item response theory (IRT), borrowed from educational testing,
+models each question as having a difficulty and a discrimination (how
+sharply it separates weaker from stronger models) and each model as
+having an ability. Fitted on many models’ past results, it lets you pick
+the questions that are most informative and estimate a model’s
+full-benchmark score from a small subset. The “tinyBenchmarks” paper
+(Polo et al., 2024) showed that around 100 well-chosen items can
+estimate full-benchmark accuracy on several popular benchmarks to within
+about two points.</p>
+<p>The trade-off is that an IRT subset is tuned on past models and may
+become less accurate on a model that behaves differently from them,
+which is exactly the model you most want to evaluate accurately. A
+sensible platform pattern is to use small, IRT-selected subsets for
+frequent in-training checkpoints, where the goal is spotting trends
+cheaply, and full sets for checkpoint promotion and release
+decisions.</p>
+<h2 id="online-evaluation-the-ab-test">Online evaluation: the A/B
+test</h2>
+<p>Offline evaluation asks how a model does on a fixed set of questions;
+online evaluation asks how real users respond to it. For a deployed
+assistant such as Copilot, the second is the ground truth and the first
+is a proxy. This section assumes basic A/B testing and only flags what
+is specific to LLM products.</p>
+<p>The randomisation unit matters: randomise by user, not by request,
+because a user who sees two models in one session contaminates both
+arms, and then compute standard errors at the user level (the clustering
+point from Chapter 7 again). Metrics are noisy and delayed: thumbs-up
+rates are sparse and biased toward unhappy users, so teams lean on
+behavioural proxies such as regeneration rate, copy rate, conversation
+length and return visits, each of which can be gamed by a model that is
+merely more verbose. Variance reduction matters a lot because LLM
+product metrics have heavy user-level variance; CUPED (Deng et al.,
+Microsoft, 2013), which uses each user’s pre-experiment behaviour as a
+covariate, typically cuts variance substantially and was developed at
+Microsoft. Peeking at an A/B test daily and stopping when it crosses p
+&lt; 0.05 inflates the false positive rate badly; either fix the sample
+size in advance or use a sequential method designed for continuous
+monitoring. And interleaving, where results from both models are merged
+into one response list, is a far more sensitive design for ranking-style
+outputs, which matters for search and retrieval features.</p>
+<p>The deepest point, and a good one for an interview, is the
+relationship between the two worlds. Offline evals are cheap, fast and
+reproducible but only correlate with what users experience; online tests
+measure the real thing but are slow, expensive and cannot be run on
+every training checkpoint. Mature teams treat offline evals as a filter
+in front of online tests and, crucially, measure how well each offline
+metric predicts online outcomes over time, retiring offline metrics that
+stop predicting.</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>Benchmarks are consumables. Contamination is the default for anything
+public; defend with training-data overlap checks, behavioural probes,
+canary strings, private held-out sets and date-filtered dynamic
+benchmarks, and store item provenance so the platform can do all of
+these. Saturation turns the last few points of a score into label noise;
+track each benchmark’s discriminative power and retire it to a
+regression-only role when that falls. The answer extractor is code under
+test. Item response theory can cut eval cost by an order of magnitude
+for trend-spotting, with full sets kept for decisions. Online A/B tests
+for LLM products need user-level randomisation, variance reduction such
+as CUPED, and discipline about peeking, and the best teams continually
+measure how well offline numbers predict online ones.</p>
+
+<nav class="pn"><a href="ch11.html">← Judges, agreement, rankings</a><a href="formulas.html">Formulas on one page →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

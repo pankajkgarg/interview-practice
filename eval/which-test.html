@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which tool, when · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1>Which tool, when</h1>
+<p class="lede">Start here. The situation decides the tool, so this page goes situation first and mechanics second. It answers the three questions from the pilot video, when to use McNemar, when to use Wilson, and where the probability in a confidence interval comes from, and then gives one table for everything else.</p>
+<h2 id="three-different-things-called-p">Three different things called
+“p”</h2>
+<p>Most of the confusion in eval statistics comes from three unrelated
+numbers that all get called “p” or “probability”. Keep them in separate
+boxes.</p>
+<div class="three">
+<div>
+<b>p̂ (“p-hat”), the score</b>The fraction of questions the model got
+right. 360 correct out of 500 gives p̂ = 0.72. It is the thing you
+measured, and it is the “p” inside the standard-error formula.
+</div>
+<div>
+<b>The p-value, from a test</b>Comes out of a comparison, such as
+McNemar. It is the chance of seeing a gap at least this big <i>if there
+were really no difference</i>. Small means “hard to explain as luck”.
+</div>
+<div>
+<b>95%, the confidence level</b>A property of the method, chosen by you.
+If you rebuilt the benchmark many times and drew an interval each time,
+95% of those intervals would contain the model’s true accuracy.
+</div>
+</div>
+<h2 id="where-the-probability-in-a-confidence-interval-comes-from">Where
+the probability in a confidence interval comes from</h2>
+<p>A confidence interval answers one question: how much would this score
+move if the benchmark had been written with different questions? Here is
+the 72% example from the video, step by step.</p>
+<ol type="1">
+<li><strong>Model each question as a coin.</strong> The model has some
+true accuracy p that you cannot see. Each question is a coin that lands
+“correct” with probability p. Which questions ended up in the benchmark
+is the randomness; that is what the interval is about.</li>
+<li><strong>Estimate p with the score.</strong> You saw 360 of 500
+correct, so p̂ = 0.72. This is the moment in the video where “the
+probability is the eval score”.</li>
+<li><strong>Spread of one coin.</strong> A coin with probability 0.72
+has variance p̂(1 − p̂) = 0.72 × 0.28 = 0.2016. It is largest at 50% and
+shrinks towards 0% or 100%, because a coin that almost always lands the
+same way barely varies.</li>
+<li><strong>Spread of the average of 500 coins.</strong> Divide the
+variance by n: 0.2016 / 500 = 0.000403. Take the square root to get the
+standard error: 0.020, which is 2.0 percentage points.</li>
+<li><strong>Turn it into an interval.</strong> Averages of many coins
+are roughly bell-shaped, and 95% of a bell lies within 1.96 standard
+errors of the centre. So 72.0 ± 1.96 × 2.0 gives <strong>68.1% to
+75.9%</strong>.</li>
+<li><strong>Read it correctly.</strong> Last week’s 70.4 sits inside
+that range, so a single run cannot tell the two checkpoints apart. (To
+actually compare them, pair them: see McNemar below.)</li>
+</ol>
+<p>The formula to remember is SE = √(p̂(1 − p̂)/n). The square root of n
+is why halving the error bar takes four times as many questions.</p>
+<h2 id="mcnemar-when-to-use-it">McNemar: when to use it</h2>
+<p><strong>Use it when two versions of something answer the
+<em>same</em> questions, and each answer is right or wrong.</strong>
+Situations on an eval platform where this comes up:</p>
+<ul>
+<li><strong>Checkpoint versus checkpoint.</strong> “Did this week’s
+checkpoint beat last week’s on our 500-question reasoning set?” This is
+the pilot example.</li>
+<li><strong>A prompt or template change.</strong> The same model with
+the old and new few-shot template, or the old and new system
+prompt.</li>
+<li><strong>An infrastructure change.</strong> A vLLM upgrade, a new GPU
+type, an FP8-quantised copy versus bf16, a batching change. “Did the
+score move because of the infra?” This is a regression check you would
+run on a pinned reference model.</li>
+<li><strong>A grader change.</strong> The same stored generations graded
+by extractor v1 and extractor v2. Here the “two versions” are the
+graders, not the models.</li>
+<li><strong>A release decision.</strong> Model A versus model B on a
+fixed held-out set.</li>
+</ul>
+<p><strong>Why it beats comparing two error bars.</strong> On the same
+questions, easy questions are easy for both models and hard ones are
+hard for both. Those cancel out of the difference. Only the questions
+where the two disagree carry evidence. McNemar is a coin-flip test on
+just those disagreements.</p>
+<p><strong>How to compute it.</strong> Count b = questions A got right
+and B got wrong, and c = the reverse. If the two models were equally
+good, each disagreement would be a fair coin. The exact test is a
+binomial test of b out of b + c at one half.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> binomtest</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>b, c <span class="op">=</span> <span class="dv">40</span>, <span class="dv">55</span>                        <span class="co"># A-only wins, B-only wins</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>binomtest(b, b <span class="op">+</span> c, <span class="fl">0.5</span>).pvalue      <span class="co"># 0.15</span></span></code></pre></div>
+<p>The paired interval on the difference is (c − b)/n ± 1.96·√(b + c −
+(c − b)²/n)/n. For the example that gives 3.0 ± 3.8 points, from −0.8 to
++6.8. Report that interval first and the p-value second.</p>
+<p><strong>When it is not the right tool:</strong></p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Use instead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Different question sets (two benchmark versions, two user
+groups)</td>
+<td>Unpaired two-proportion test, or the Newcombe interval for the
+difference</td>
+</tr>
+<tr>
+<td>Scores are not right/wrong (judge score 1 to 10, F1, BLEU)</td>
+<td>Paired t-test on per-question differences, or a paired
+bootstrap</td>
+</tr>
+<tr>
+<td>Several samples per question (pass@1 averaged over 8 samples)</td>
+<td>Average per question first, then a paired bootstrap or paired t-test
+on those averages</td>
+</tr>
+<tr>
+<td>Three or more systems</td>
+<td>Pairwise McNemar with a Holm correction (or Cochran’s Q as an
+overall test first)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>One line for the interview:</strong> “On the same items I
+never compare two error bars. I look at the discordant pairs. McNemar is
+a sign test on the questions where the two disagree, and it is why the
+platform must store per-question results.”</p>
+<h2 id="wilson-interval-when-to-use-it">Wilson interval: when to use
+it</h2>
+<p><strong>Use it for a single pass rate whenever n is small or the rate
+is near 0% or 100%. In practice, use it by default:</strong> when the
+simple interval is fine, Wilson agrees with it.</p>
+<p>Situations where the simple ±1.96·SE interval (the “Wald” interval)
+breaks:</p>
+<ul>
+<li><strong>Small benchmarks.</strong> AIME has 30 questions. At 1 of 30
+correct, Wald gives −3.1% to 9.8%, which includes impossible negative
+accuracies. Wilson gives <strong>0.6% to 16.7%</strong>.</li>
+<li><strong>Slices.</strong> Per-language or per-category breakdowns
+with 20 to 80 items each.</li>
+<li><strong>Rare events.</strong> Refusal rate, harmful-output rate,
+crash or extraction-failure rate. For 3 failures in 2,000 runs, Wilson
+gives 0.05% to 0.44%.</li>
+<li><strong>Saturated benchmarks.</strong> At 485 of 500 (97%), Wald’s
+upper end is 98.5%. Wilson pulls the interval in from the edge (95.1% to
+98.2%) instead of running it towards 100%.</li>
+<li><strong>Zero observed failures.</strong> 0 of 100 does not mean
+“never”. Wilson’s upper bound is 3.7%, and the quick rule of three says
+about 3/n.</li>
+</ul>
+<p><strong>Why Wald breaks.</strong> It assumes a symmetric bell around
+p̂, but near 0 or 1 the true distribution is lopsided and squashed
+against the wall. Wilson solves the problem the other way round. It asks
+which true values of p would make the observed score unsurprising, which
+keeps it inside 0 to 1 and gives it honest coverage.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> statsmodels.stats.proportion <span class="im">import</span> proportion_confint</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>proportion_confint(<span class="dv">1</span>, <span class="dv">30</span>, method<span class="op">=</span><span class="st">&quot;wilson&quot;</span>)          <span class="co"># (0.006, 0.167)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>proportion_confint(<span class="dv">1</span>, <span class="dv">30</span>, method<span class="op">=</span><span class="st">&quot;beta&quot;</span>)            <span class="co"># Clopper-Pearson, more conservative</span></span></code></pre></div>
+<p>If guaranteed coverage matters, as in a safety sign-off, use
+Clopper-Pearson (“exact”). It is a bit wider than Wilson.</p>
+<h2 id="everything-else-situation-to-tool">Everything else: situation to
+tool</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>You have</th>
+<th>You want to know</th>
+<th>Reach for</th>
+<th>Read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One pass rate</td>
+<td>How precise is it?</td>
+<td>Wilson interval (Wald is fine for large n and mid-range scores)</td>
+<td><a href="ch07.html">Ch 7</a></td>
+</tr>
+<tr>
+<td>One score that is not a pass rate (mean judge score, F1, p95
+latency)</td>
+<td>How precise is it?</td>
+<td>Bootstrap: resample questions, recompute, take the 2.5th and 97.5th
+percentiles</td>
+<td><a href="ch07.html">Ch 7</a></td>
+</tr>
+<tr>
+<td>Questions that come in groups (5 questions per passage, tasks per
+repo)</td>
+<td>How precise is it, honestly?</td>
+<td>Cluster bootstrap or clustered standard errors; resample the
+groups</td>
+<td><a href="ch07.html">Ch 7</a></td>
+</tr>
+<tr>
+<td>Two systems, same questions, right/wrong</td>
+<td>Is the gap real?</td>
+<td>McNemar, plus the paired interval on the difference</td>
+<td><a href="ch08.html">Ch 8</a></td>
+</tr>
+<tr>
+<td>Two systems, same questions, continuous scores</td>
+<td>Is the gap real?</td>
+<td>Paired t-test, paired bootstrap or permutation test</td>
+<td><a href="ch08.html">Ch 8</a></td>
+</tr>
+<tr>
+<td>Two systems, different questions</td>
+<td>Is the gap real?</td>
+<td>Two-proportion test or Newcombe interval</td>
+<td><a href="ch08.html">Ch 8</a></td>
+</tr>
+<tr>
+<td>A benchmark, before you run it</td>
+<td>Can it even detect a 2-point change?</td>
+<td>Minimum detectable effect ≈ 2.8 × SE of the difference</td>
+<td><a href="ch09.html">Ch 9</a></td>
+</tr>
+<tr>
+<td>k samples per problem</td>
+<td>What is pass@k?</td>
+<td>The unbiased estimator 1 − C(n−c, k)/C(n, k)</td>
+<td><a href="ch09.html">Ch 9</a></td>
+</tr>
+<tr>
+<td>Many benchmarks × checkpoints, or many slices</td>
+<td>Which movements are real?</td>
+<td>Holm for release gates; Benjamini-Hochberg for dashboards</td>
+<td><a href="ch10.html">Ch 10</a></td>
+</tr>
+<tr>
+<td>An LLM judge and some human labels</td>
+<td>Can I trust the judge?</td>
+<td>Cohen’s kappa plus the confusion matrix; human-human agreement as
+the ceiling</td>
+<td><a href="ch11.html">Ch 11</a></td>
+</tr>
+<tr>
+<td>Pairwise preference votes</td>
+<td>A ranking with error bars</td>
+<td>Bradley-Terry fit, with bootstrap rank ranges</td>
+<td><a href="ch11.html">Ch 11</a></td>
+</tr>
+<tr>
+<td>A score that looks too good</td>
+<td>Is the test set leaked?</td>
+<td>Contamination checks: n-gram overlap, perturbed or fresh
+versions</td>
+<td><a href="ch12.html">Ch 12</a></td>
+</tr>
+<tr>
+<td>Live users</td>
+<td>Did the change help?</td>
+<td>A/B test randomised by user, CUPED, no peeking without a sequential
+method</td>
+<td><a href="ch12.html">Ch 12</a></td>
+</tr>
+</tbody>
+</table>
+
+
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

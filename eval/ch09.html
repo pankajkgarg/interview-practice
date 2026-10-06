@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power, sample size, pass@k · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1 id="how-many-questions-do-you-need-power-noise-and-passk">How many
+questions do you need? Power, noise and pass@k</h1>
+<div class="when"><b>Use this when</b>Before running: can this benchmark even detect the change you care about? How many questions do you need? Also how to compute pass@k correctly.</div>
+<p>The last two chapters were about reading a result after the fact.
+This one is about designing the measurement before you run it, which is
+where an evaluation platform engineer has the most leverage. Every
+benchmark the platform runs costs GPU hours on every checkpoint. If a
+benchmark is too small to detect the effects researchers care about,
+those GPU hours buy noise; if it is far bigger than needed, they buy
+precision nobody uses. Power analysis is how you tell the
+difference.</p>
+<h2 id="the-problem-stated-as-a-researcher-would">The problem, stated as
+a researcher would</h2>
+<p>A training team tells you that the improvements they are hunting for,
+from one data-mixture ablation to the next, are around two percentage
+points. They want to know whether the 500-question benchmark is good
+enough to see them, and if not, how large it needs to be. Take a moment
+to think about how you would answer before reading on.</p>
+<h2 id="two-kinds-of-mistake">Two kinds of mistake</h2>
+<p>Any test can go wrong in two directions. It can declare a difference
+when there is none, a false positive; the significance level α,
+conventionally 0.05, caps how often that happens. Or it can miss a
+difference that really exists, a false negative. The probability of
+catching a real effect of a given size is called the power of the test,
+and the convention is to want at least 80 percent.</p>
+<p>The minimum detectable effect, or MDE, is the smallest true
+difference that your test catches with 80 percent power at α = 0.05. For
+a normal-approximation test the formula is MDE ≈ (1.96 + 0.84) × SE,
+where 1.96 comes from α and 0.84 from the 80 percent power requirement,
+and SE is the standard error of the difference you are testing. That
+constant, 2.8, is worth remembering: the smallest effect you can
+reliably detect is about 2.8 standard errors.</p>
+<h2 id="the-naive-answer">The naive answer</h2>
+<p>If you compute the standard error as if the two models were evaluated
+on independent question sets, at an accuracy of about 70 percent, you
+get these minimum detectable effects: 12.8 points with 200 questions,
+8.1 with 500, 5.7 with 1,000, 4.1 with 2,000 and 2.6 with 5,000. Taken
+at face value, the 500-question benchmark can only reliably detect an
+8-point improvement, and you would need about 8,000 questions to see a
+2-point one. That is an alarming answer and it would justify a big
+benchmark-building project.</p>
+<h2 id="the-better-answer-pairing-changes-the-arithmetic">The better
+answer: pairing changes the arithmetic</h2>
+<p>But you know from Chapter 8 that the comparison is paired, so the
+relevant standard error depends on the discordance rate, the fraction of
+questions on which the two models disagree. For two checkpoints from the
+same training run, discordance is typically modest, because consecutive
+checkpoints get the same easy questions right and the same hard ones
+wrong. Suppose 20 percent of questions are discordant. Then the paired
+standard error is roughly √(0.20 / n), and the minimum detectable effect
+becomes 8.9 points at 200 questions, 5.6 at 500, 4.0 at 1,000, 2.8 at
+2,000 and 1.8 at 5,000.</p>
+<figure>
+<img src="img/fig-9-1.png" alt="Pairing roughly halves the questions needed to detect a given improvement; the discordance rate between the two models decides how much.">
+<figcaption>
+Figure 9.1. Pairing roughly halves the questions needed to detect a
+given improvement; the discordance rate between the two models decides
+how much.
+</figcaption>
+</figure>
+<p>So to see a 2-point improvement with 80 percent power you need around
+4,000 items for checkpoints that disagree on a fifth of questions, and
+fewer if they agree more. The 500-question benchmark is still too small
+for the job, but the gap is half what the naive analysis suggested. The
+honest answer to the researcher has three parts. A single 500-question
+benchmark cannot reliably detect a 2-point change between two
+checkpoints. Pooling several related benchmarks into one paired
+comparison, or resampling each question several times if the model is
+stochastic, can close much of the gap without writing new questions. And
+the right number depends on the measured discordance rate, which the
+platform can compute from past runs and should display.</p>
+<h2
+id="noise-across-checkpoints-and-why-small-evals-mislead-training-decisions">Noise
+across checkpoints, and why small evals mislead training decisions</h2>
+<p>A version of this problem shows up continuously during pretraining.
+The platform evaluates every few thousand steps, and researchers stare
+at curves. A benchmark with high sampling noise produces a jagged curve
+whose wiggles are larger than the real trend over short horizons, and
+people read stories into the wiggles. The AI2 OLMo team’s 2025 work on
+“signal and noise” in benchmarks formalised this as a ratio: the spread
+between genuinely different models (signal) divided by the
+checkpoint-to-checkpoint jitter of a single model late in training
+(noise). Benchmarks with a low signal-to-noise ratio are bad at ranking
+small-scale experiments, and they found that simple changes, such as
+averaging over the last few checkpoints or switching from accuracy to a
+continuous metric like the per-token log-likelihood of the correct
+answer (bits-per-byte), raise the ratio a lot. Their headline example:
+switching the MBPP coding benchmark from accuracy to bits-per-byte on
+the correct solution raised its signal-to-noise ratio from 2.0 to 41.8
+and the fraction of small-scale decisions that matched the large-scale
+outcome from 68 to 93 percent. A related AI2 study, DataDecide (April
+2025), found that simply ranking data recipes at 150 million parameters
+picked the winner at 1 billion about 80 percent of the time. The
+MAI-Thinking-1 technical report reportedly found the opposite risk too,
+data-mixture rankings that flip between small and large scale, which is
+the caution that keeps this from being a solved problem.</p>
+<p>This is a theme that runs through how labs evaluate during
+pretraining. Early in training, accuracy on a multiple-choice benchmark
+sits at chance and is pure noise, while the probability the model
+assigns to the correct answer is already moving smoothly. So
+training-time eval suites usually track continuous likelihood-based
+metrics early and switch to generative accuracy later. A platform that
+only knows how to compute accuracy cannot support that, which is one of
+the reasons the open frameworks distinguish “loglikelihood” requests
+from “generate until” requests (Chapter 3 returns to this).</p>
+<h2 id="passk-and-its-unbiased-estimator">pass@k and its unbiased
+estimator</h2>
+<p>Code and maths benchmarks often report pass@k: the probability that
+at least one of k sampled attempts at a problem is correct. It sounds
+trivial to compute, and the trivial way is wrong in a way interviewers
+like to probe.</p>
+<p>The tempting approach is to sample exactly k attempts per problem and
+record whether any passed. That estimator is unbiased but very noisy.
+The other tempting approach is to measure the single-attempt pass rate p
+and report 1 − (1 − p)^k, which is wrong because it assumes every
+problem has the same difficulty; it averages p across problems before
+applying a nonlinear function, and averaging and nonlinearity do not
+commute.</p>
+<p>The estimator introduced with OpenAI’s Codex paper (Chen et al.,
+2021) does it properly. For each problem, generate n samples with n
+larger than k (say n = 20), count the c that pass, and compute the
+probability that a random subset of k of those n samples contains at
+least one pass: 1 − C(n − c, k) / C(n, k), where C is the binomial
+coefficient. Average that over problems. With n = 20 samples and c = 3
+correct on a problem, pass@1 is 0.15 and pass@5 is 0.60. The naive
+formula 1 − 0.85⁵ gives 0.56 for that single problem, and across a
+benchmark with varied difficulty the error is larger. In code, compute
+the ratio of binomial coefficients as a running product rather than with
+factorials, because C(200, 100) overflows anything you would want to
+use.</p>
+<p>There is also a newer subtlety. For reasoning models, labs
+increasingly report “avg@k” or “mean@k” (the mean single-attempt
+accuracy over k samples, which is just a lower-variance estimate of
+pass@1), “maj@k” or “cons@k” (accuracy of the majority-vote answer
+across k samples), and pass@k in its original sense. These measure
+different things: maj@k credits a model for being consistently right,
+pass@k credits it for being occasionally right. When a researcher asks
+for “the AIME number”, ask which one.</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>The smallest effect you can reliably detect is about 2.8 standard
+errors of the difference. Pairing roughly halves the number of questions
+needed, and the discordance rate between the two models sets exactly how
+much; at 20 percent discordance, seeing a 2-point change with 80 percent
+power takes about 4,000 items. Small, noisy benchmarks mislead
+checkpoint-by-checkpoint training decisions, and continuous metrics such
+as log-likelihood of the correct answer carry more signal early in
+training than accuracy. Compute pass@k with the unbiased estimator from
+n samples per problem, never as 1 − (1 − p)^k, and ask which of pass@k,
+avg@k and maj@k anyone means before comparing numbers.</p>
+
+<nav class="pn"><a href="ch08.html">← Comparing two models</a><a href="ch10.html">Many comparisons →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

@@ -65,6 +65,7 @@ footer a{color:var(--accent)}
 <header>
 <h1>Interview practice set</h1>
 <p>Problems grouped by the same patterns as the <em>Coding Interview Refresher</em> book and video. Every problem links to LeetCode. Tick a box when you have solved it from a blank file; progress is saved in this browser.</p>
+<p><a href="eval/">Eval study notes</a>: the statistics and engineering of LLM evaluation, with the eval explainer videos.</p>
 </header>
 
 <div class="bar">

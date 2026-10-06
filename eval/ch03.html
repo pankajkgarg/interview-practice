@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graders · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1 id="graders-where-most-eval-bugs-live">Graders, where most eval bugs
+live</h1>
+<div class="when"><b>Use this when</b>A score looks wrong and the grader is a suspect: answer extraction, code-execution tests, or an LLM judge.</div>
+<p>If you ask experienced eval engineers where wrong numbers come from,
+the answer is rarely the model and rarely the statistics. It is the
+grader: the code that decides whether an answer is right. Graders are
+deceptively simple, they run on every item of every run, and a subtle
+grader bug produces numbers that look perfectly plausible. This chapter
+walks up the ladder of grader types from simplest to most complex, with
+the specific way each one fails, because “how would you make graders
+reliable?” is one of the most likely questions you will get.</p>
+<h2 id="exact-match-and-why-it-is-never-exact">Exact match, and why it
+is never exact</h2>
+<p>The simplest grader compares the model’s answer to a reference
+string. In practice it never compares raw strings. It normalises first:
+lowercasing, stripping whitespace and punctuation, removing articles
+(SQuAD’s classic normalisation drops “a”, “an”, “the”), standardising
+number formats so that “1,000”, “1000” and “1000.0” match. Every
+normalisation rule is a decision that moves scores. Too little and
+correct answers are marked wrong; too much and wrong answers slip
+through. Two public cases show how far this can go. In late 2023 Hugging
+Face found that the DROP benchmark on its Open LLM Leaderboard was using
+“.” as a stop sequence, so an answer of “12.25” was cut to “12”, and
+that numbers followed by anything other than a single space skipped
+normalisation; most models scored under 10 F1 and the benchmark was
+dropped from the leaderboard, because fixing it meant re-running more
+than half of all evaluations. And in January 2026 Anthropic described
+how a rigid grader on CORE-Bench penalised “96.12” when the reference
+was “96.124991…”; after the grading and task specifications were fixed,
+Claude Opus 4.5’s score went from 42 percent to 95 percent.</p>
+<p>Before you compare, you have to extract. For multiple-choice
+questions answered generatively, the model might write “The answer is
+(B)”, “B”, “<strong>B) Paris</strong>” or a paragraph that mentions
+options A and C before settling on B. For maths, the final answer might
+be in a LaTeX box, after “Final answer:”, or only in the last line.
+Reasoning models complicate this further by restating intermediate
+values and sometimes changing their minds. Extraction is where
+reasoning-model evaluations most often go wrong, and the fix is to treat
+the extractor as code under test: a library of real tricky outputs with
+expected extractions, run as unit tests in CI whenever the extractor
+changes, plus a monitored “extraction failure rate” per run, because a
+sudden rise in unparseable answers usually means a format change in the
+model or a template bug, not a capability drop.</p>
+<p>For mathematics specifically, string equality is the wrong test. Two
+answers can be mathematically equal and textually different (one half,
+0.5, 1/2, ), and symbolic answers need algebraic equivalence. Libraries
+such as Hugging Face’s Math-Verify (2025) parse LaTeX and compare
+symbolically with SymPy, and the choice matters a lot: Math-Verify’s own
+comparison on the same set of model outputs for MATH reports 8.0 percent
+with lm-evaluation-harness’s checker, 12.9 percent with Qwen’s and 13.3
+percent with Math-Verify, a five-point swing from the checker alone. The
+engineering lesson is that equivalence checking is a dependency with
+versions and edge cases, and changing it is a benchmark version
+change.</p>
+<h2 id="likelihood-scoring">Likelihood scoring</h2>
+<p>For base models and multiple-choice tasks, the alternative to
+generation is to ask the model for the log-probability of each answer
+option given the question, and pick the highest. This avoids extraction
+entirely and is cheap, which is why in-training evals use it. Its
+subtleties are about normalisation: longer options have lower total
+log-probability simply because they have more tokens, so frameworks
+offer per-token or per-character normalised variants
+(lm-evaluation-harness reports “acc” and “acc_norm”), and different
+choices can rank models differently. Tokenisation is the other trap:
+whether there is a leading space before the answer option changes the
+tokens and therefore the probabilities. The same benchmark scored with
+different conventions is effectively a different benchmark, which is
+part of why the OLMES standard (AI2, 2024) was proposed to fix these
+choices for reproducible comparisons.</p>
+<h2 id="code-execution-and-unit-tests">Code execution and unit
+tests</h2>
+<p>For coding benchmarks the grader runs the model’s code against tests.
+HumanEval and MBPP run a function against a few assertions; SWE-bench
+applies the model’s patch to a real repository and runs that
+repository’s test suite inside a per-task Docker image; agentic
+benchmarks run whole environments. This is the most objective kind of
+grading and also the most operationally demanding, and the operational
+problems are classic distributed-systems ones: scheduling, resource
+exhaustion, networking and process-level faults.</p>
+<p>Here is what goes wrong. Model-written code is untrusted, so it must
+run in a sandbox with no network access, limited CPU, memory and disk, a
+wall-clock timeout, and protections against fork bombs and runaway
+processes. Sandboxes are themselves flaky: container start-up can time
+out under load, image pulls fail or throttle, a node’s disk fills with
+container layers, a shared test resource such as a port collides between
+parallel runs. Every one of these shows up as a “wrong answer” unless
+the grader distinguishes infrastructure errors from test failures, which
+it must: an infrastructure error should be retried and, if it persists,
+recorded as an error and excluded from the score with an alert, never
+silently counted as a model failure. How much this matters was
+quantified by Anthropic in February 2026: on Terminal-Bench 2.0, simply
+changing container resource limits moved scores by six percentage
+points, and the infrastructure error rate fell from 5.8 percent under
+strict limits to 0.5 percent with no caps. Resource guarantees and
+limits are therefore part of the benchmark configuration, not an
+operational detail. Tests themselves can be flaky or wrong; SWE-bench
+Verified exists because OpenAI and the SWE-bench authors had human
+annotators screen the original set in 2024 and discard tasks with
+underspecified issues or unfair tests; that audit flagged 61.1 percent
+of the original samples for tests that might reject valid solutions. The
+story did not end there. In February 2026 OpenAI announced it no longer
+evaluates on SWE-bench Verified, after finding material test-design
+problems in 59.4 percent of 138 hard Verified problems it audited and
+evidence that frontier models could reproduce the original human fixes,
+a contamination signal; it now recommends SWE-bench Pro, which is the
+benchmark Microsoft AI quoted for MAI-Thinking-1. A platform-level habit
+worth describing is running the reference solution through the grader
+regularly: if the gold patch stops passing, the environment has
+rotted.</p>
+<h2 id="llm-as-judge-and-rubric-graders">LLM-as-judge and rubric
+graders</h2>
+<p>For open-ended outputs the grader is a language model given the
+question, the answer, often a reference answer, and a rubric, and asked
+for a verdict or a score. Chapter 11 covered how to validate a judge
+statistically. The engineering side is that a judge is a model call with
+all the operational properties of one: latency, cost, rate limits,
+nondeterminism, and the possibility that the judge’s provider updates
+the model under you. Practices that make judge-graded evals reliable
+include pinning an exact judge model version; storing the judge’s full
+prompt and output alongside the score for auditability; running pairwise
+comparisons in both orders; using a structured output format that is
+cheap to parse and validating it; keeping a human-labelled calibration
+set that is re-scored on any judge change, with agreement tracked as a
+metric; and caching judge calls by input hash, since re-grading
+unchanged answers with an unchanged judge should be free. Parsing the
+judge’s output is its own source of bugs, and there is a Microsoft
+example worth knowing: a GitHub issue against the Azure AI Evaluation
+SDK (number 49153; its fix status was not verified for this book)
+reports that when JSON parsing of a judge reply failed, several
+evaluators fell back to taking the first digit anywhere in the reply, so
+“3 claims, all supported… Score: 5” scored 3 and “10 out of 10” scored
+1. Structured output with a schema, anchored parsing and range
+validation, plus unit tests on awkward replies, prevent exactly
+this.</p>
+<p>Rubric-based grading, where a judge checks a list of specific
+criteria (did the answer mention the drug interaction, did it cite the
+correct section), has become popular because it makes judge decisions
+more consistent and auditable than a single holistic score. OpenAI’s
+HealthBench (May 2025), with physician-written rubrics per conversation,
+is a well-known example.</p>
+<h2 id="reward-models-and-verifiers-in-rl">Reward models and verifiers
+in RL</h2>
+<p>During reinforcement learning, a grader becomes a reward function.
+For verifiable domains (maths with known answers, code with tests), the
+same extractors and execution sandboxes used for evaluation compute
+rewards for millions of rollouts. For non-verifiable domains, a learned
+reward model or a judge supplies the signal. This overlap is why eval
+platforms and RL infrastructure are so often built together. It has two
+consequences worth raising. The throughput requirements are an order of
+magnitude higher, since RL needs graders in the training loop at rollout
+speed. And a grader bug is now worse than a wrong number: the policy
+will learn to exploit it, a phenomenon called reward hacking. A maths
+grader that accepts any answer containing the right number somewhere
+teaches the model to list many numbers. The defence is the same
+discipline as for evaluation, applied more strictly: grader unit tests
+including adversarial cases, held-out evaluation with independent
+graders, and monitoring for suspicious jumps in reward that are not
+matched by held-out scores.</p>
+<h2 id="agentic-environment-graders">Agentic environment graders</h2>
+<p>The newest grader type evaluates an agent that takes many actions in
+an environment: a terminal, a browser, a simulated company’s tools.
+Grading may check the final state of the environment (is the file there,
+did the test pass, is the database row updated), or have a judge read
+the whole trajectory. Terminal-Bench and the SWE-bench family check
+final state; many agent benchmarks combine both. These evaluations are
+long-running (minutes to hours per task), stateful, and need
+environments that are reset reliably between tasks, which makes them
+look more like integration tests for distributed systems than like
+benchmarks. They are also where the run-to-run variance of Chapter 7 is
+largest, because a single early action can change the whole
+trajectory.</p>
+<h2 id="a-grader-reliability-checklist">A grader reliability
+checklist</h2>
+<p>If an interviewer asks how you would make graders trustworthy, you
+can organise the answer into five habits. Version graders and put the
+version in the result row, so any score change can be attributed. Test
+them like production code, with unit tests on real hard cases and on
+adversarial cases. Separate infrastructure errors from wrong answers and
+monitor the error rate. Run known-answer canaries: reference solutions
+that must always pass and known-bad answers that must always fail, run
+on every grader change and periodically in production. And re-grade from
+stored generations whenever a grader changes, so old and new grader
+versions can be compared on identical answers before the new one is
+rolled out.</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>Graders run on every item of every run, and their bugs produce
+plausible wrong numbers. Exact match depends on normalisation and
+extraction, and extraction is the commonest source of reasoning-model
+eval errors. Likelihood scoring is cheap but sensitive to length
+normalisation and tokenisation conventions. Code execution is objective
+but operationally hard: sandboxes, flaky infrastructure, rotting
+environments, and the need to separate infrastructure errors from
+failures. Judges need pinning, auditing, calibration sets and both-order
+comparisons. In RL the grader is the reward, so its bugs get exploited.
+Five habits cover reliability: version, test, separate infra errors, run
+canaries, and re-grade from stored generations.</p>
+
+<nav class="pn"><a href="ch02.html">← Anatomy of an eval</a><a href="ch04.html">Throughput and scheduling →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

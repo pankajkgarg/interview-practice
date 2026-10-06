@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Judges, agreement, rankings · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1
+id="when-the-grader-is-a-model-judges-agreement-and-pairwise-rankings">When
+the grader is a model: judges, agreement and pairwise rankings</h1>
+<div class="when"><b>Use this when</b>The grader is an LLM or a human: is the judge trustworthy (kappa), and how do you turn pairwise votes into a ranking (Bradley-Terry, Elo)?</div>
+<p>Exact-match graders are easy to trust because you can read their
+code. A growing share of what labs evaluate, from chat helpfulness to
+long-form reasoning to agent transcripts, has no single right answer,
+and is graded either by people or, far more often now, by another
+language model. An LLM judge is a measuring instrument, and the first
+question about any instrument is whether it measures what you think it
+does. This chapter covers how to answer that question with numbers, and
+then how labs turn pairwise judgements into a ranking.</p>
+<h2 id="the-problem">The problem</h2>
+<p>A team has built an LLM judge that reads a model’s answer to a
+customer-support prompt and outputs PASS or FAIL. They hand you 200
+answers that two human experts also graded, and the judge agrees with
+the human consensus on 80 percent of them. Is the judge good? What would
+you check before letting it gate a release?</p>
+<h2 id="why-raw-agreement-is-not-enough">Why raw agreement is not
+enough</h2>
+<p>Eighty percent sounds respectable, but agreement on its own mixes
+skill with luck. If the judge and the humans both say PASS most of the
+time, they will agree often even if the judge is guessing. Here are the
+actual counts: on 110 answers both said PASS, on 50 both said FAIL, on
+25 the judge said PASS and the humans said FAIL, and on 15 the judge
+said FAIL and the humans said PASS. The judge says PASS 67.5 percent of
+the time and the humans 62.5 percent of the time. Two raters who said
+PASS at those rates completely at random would agree on 0.675 × 0.625 +
+0.325 × 0.375 = 54.4 percent of items by chance.</p>
+<h2 id="cohens-kappa">Cohen’s kappa</h2>
+<p>Cohen’s kappa corrects for that. It asks how much of the possible
+improvement over chance agreement the judge actually achieved: κ =
+(observed agreement − chance agreement) / (1 − chance agreement). Here
+that is (0.80 − 0.544) / (1 − 0.544) = 0.56. On the commonly cited
+Landis and Koch scale, 0.41 to 0.60 is “moderate” agreement and 0.61 to
+0.80 “substantial”. So this judge is moderate, not great, and the raw 80
+percent oversold it.</p>
+<p>Kappa has a well-known paradox you should be able to describe,
+because it bites eval teams constantly. When one label is rare, kappa
+can be low even when agreement is very high. Take a safety judge on a
+dataset where 94 percent of answers are fine: suppose judge and humans
+agree on 180 PASS and 4 FAIL, and disagree on 8 each way. Raw agreement
+is 92 percent, but kappa is only 0.29, because almost all of that
+agreement is on the easy majority class and the judge catches only a
+third of the failures the humans flagged. Kappa is telling you something
+real here: on the cases that matter, the judge is weak. The lesson is to
+report the confusion matrix and the per-class rates (how many of the
+human-flagged failures the judge catches, which is its recall on FAIL,
+and how many of its FAILs are real, its precision) next to kappa, never
+kappa alone.</p>
+<p>For more than two raters, Fleiss’ kappa generalises the same idea,
+and Krippendorff’s alpha generalises further to ordinal or interval
+scales (a 1 to 10 rubric score) and to missing ratings. When the scores
+are numeric, a rank correlation such as Spearman’s ρ or Kendall’s τ
+between judge and human scores is also standard, and for system-level
+validation (does the judge rank models the same way humans do?)
+Kendall’s τ across models is the number people quote.</p>
+<h2 id="the-ceiling-is-the-humans">The ceiling is the humans</h2>
+<p>There is a step that teams skip and that interviewers notice. Before
+asking how well the judge agrees with humans, measure how well the
+humans agree with each other. If two expert annotators have a kappa of
+0.6 between them, a judge with a kappa of 0.56 against their consensus
+is performing near the human ceiling, and further prompt engineering
+will not buy much. If the humans agree at 0.9, the judge has real room
+to improve. Inter-annotator agreement sets the ceiling for any automated
+grader and is also the best diagnostic of whether your rubric is well
+defined: low human agreement usually means an ambiguous rubric, which no
+judge can fix.</p>
+<h2 id="the-known-biases-of-llm-judges">The known biases of LLM
+judges</h2>
+<p>The literature since the 2023 “Judging LLM-as-a-Judge” paper (Zheng
+et al., the MT-Bench and Chatbot Arena paper) has catalogued a
+consistent set of biases, and a platform that offers judge-based graders
+should measure each of them as part of judge validation.</p>
+<p>Position bias: in pairwise comparisons, judges favour whichever
+answer appears first (or, for some models, second). The standard
+mitigation is to run every comparison in both orders and either average
+or count only consistent verdicts; the rate at which a judge flips its
+verdict when the order is swapped is a direct measure of its
+unreliability. Verbosity bias: judges prefer longer answers even when
+the extra length adds nothing, which rewards models for padding.
+Mitigations include length-controlled win rates (AlpacaEval 2.0
+introduced a regression-based length control in 2024) and rubrics that
+explicitly penalise unnecessary length. Self-preference: judges rate
+outputs from their own model family more highly, so using the model
+under test as its own judge is a conflict of interest. Sensitivity to
+formatting and style: markdown headers and bullet lists sway judges,
+which is why LMArena added “style control” to its leaderboard in 2024.
+And drift: if the judge is a hosted model, a silent provider update can
+shift every score, so a platform must pin judge model versions and keep
+a fixed calibration set that is re-scored whenever the judge
+changes.</p>
+<p>That last point is a platform concern more than a statistics one, and
+it is the one most directly in the job description. A judge is a
+dependency like any other library. It needs a version, a regression test
+(the calibration set with human labels, re-scored on every change, with
+kappa tracked over time), and an alert when its agreement drops.</p>
+<h2 id="from-pairwise-verdicts-to-a-ranking-bradley-terry-and-elo">From
+pairwise verdicts to a ranking: Bradley-Terry and Elo</h2>
+<p>Many preference evaluations do not score answers in isolation; they
+ask which of two answers is better. Chatbot Arena (now LMArena) collects
+millions of such human votes, and internal evals often do the same with
+a judge. Turning a pile of pairwise wins into a ranking is the job of
+the Bradley-Terry model.</p>
+<p>Bradley-Terry assigns each model a strength sᵢ and says the
+probability that model i beats model j is 1 / (1 + e^(−(sᵢ − sⱼ))), a
+logistic function of the strength difference. Fitting it is just
+logistic regression on the pairwise outcomes. The familiar Elo scale is
+the same thing with a change of units: a 400-point Elo difference means
+10-to-1 odds. A useful conversion to keep in your head is that a 60
+percent head-to-head win rate corresponds to about 70 Elo points, and 55
+percent to about 35.</p>
+<p>Elo as used in chess updates ratings sequentially after each game,
+which makes the result depend on the order in which games were played;
+that is fine for chess, where players change over time, but wrong for
+static models. LMArena moved from online Elo to fitting Bradley-Terry on
+all votes at once in late 2023 for exactly this reason, and computes
+confidence intervals on each model’s score by bootstrapping over votes.
+When two models’ intervals overlap heavily, their rank order is not
+meaningful, which is why their leaderboard shows rank ranges rather than
+single ranks.</p>
+<p>The 2025 controversy around Meta’s Llama 4 on LMArena, where an
+experimental chat-tuned variant that was not the released model reached
+second place on the leaderboard, and the subsequent “Leaderboard
+Illusion” paper (Singh et al., April 2025) arguing that private testing
+of many variants lets labs select the best draw, (the paper counted 27
+private Llama 4 variants tested before launch, and the released Maverick
+ranked 32nd where the tuned variant had ranked second) are both
+multiple-comparisons stories: test enough private variants against a
+noisy leaderboard and the maximum will look better than the model really
+is. If an interviewer brings up arena-style evals, connecting them back
+to Chapter 10 is a strong move.</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>Validate an LLM judge the way you would any measuring instrument:
+against human labels, with chance-corrected agreement (Cohen’s kappa for
+two raters, Fleiss or Krippendorff for more), and with the confusion
+matrix beside it because kappa collapses when one class is rare. Measure
+human-human agreement first; it is the ceiling. Test for position,
+verbosity, self-preference and style bias, run pairwise comparisons in
+both orders, and treat the judge as a pinned, versioned dependency with
+its own regression suite. Pairwise preferences become rankings through
+Bradley-Terry, which is Elo without the order dependence; bootstrap its
+confidence intervals, and remember that a leaderboard where labs can
+test many private variants rewards selection, not quality.</p>
+
+<nav class="pn"><a href="ch10.html">← Many comparisons</a><a href="ch12.html">Benchmarks wear out →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

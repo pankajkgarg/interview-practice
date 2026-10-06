@@ -1,0 +1,294 @@
+Eval statistics pilot video: full context
+=========================================
+
+What this file is: the complete narration of the video, in order, with a note of what is
+on screen at each step. Attach it to a chat with Claude or ChatGPT and ask about any part,
+e.g. "In chapter 2, why do the both-right questions cancel out?". Numbers come from a
+simulation made for the video; the concepts are standard eval statistics.
+
+Chapters:
+    0:04  Intro
+    0:31  1. A benchmark score is an estimate (standard error, confidence interval, Wilson)
+    4:20  2. Comparing two models: pairing and McNemar, what a p-value means
+    8:13  3. The bootstrap, and clustered questions
+   11:13  4. Many benchmarks, many checkpoints: multiple comparisons and Holm
+   14:17  Outro
+
+
+----------------------------------------------------------------------------------------
+[0:04] Intro
+----------------------------------------------------------------------------------------
+This is a pilot for a new set of videos, on the statistics behind evaluation numbers.
+Four ideas, each one starting from a question a researcher might send you on a Tuesday
+morning.
+Same shape as the coding videos: the question, a pause for you to think, the tempting
+answer, the observation that fixes it, and the tool. The strip at the top shows where we
+are.
+
+----------------------------------------------------------------------------------------
+[0:31] 1. A benchmark score is an estimate (standard error, confidence interval, Wilson)
+----------------------------------------------------------------------------------------
+
+QUESTION
+Concept one. A message from a researcher.
+    (On screen: chat bubble appears)
+"New checkpoint scores 72.0 percent on our 500-question reasoning benchmark. Last week's
+scored 70.4. Did the data change work?"
+    (On screen: bubble text types out; whiteboard shows 70.4% -> 72.0%, n = 500)
+That is a 1.6 point improvement. The question is whether it is real.
+
+THINK
+Pause and think. What would you tell them, and what would you need to know first?
+    (On screen: countdown card)
+
+NAIVE ANSWER
+The tempting answer: 72 is bigger than 70.4, so yes, it helped. Ship the data change.
+    (On screen: green tick next to 72.0)
+But that treats 72.0 as an exact property of the model, like its parameter count. Is it?
+    (On screen: tick fades into a question mark)
+
+OBSERVATION
+Here is the question that unlocks it. If someone had written a different 500 questions
+of the same kind, would the model still score exactly 72.0?
+Let's find out. Take a model whose true accuracy is 71 percent. Give it a fresh set of
+500 questions. It scores one number.
+    (On screen: one dot drops onto an x-axis from 64% to 78%)
+Another fresh set. A different number. And again.
+    (On screen: a few more dots drop, each landing somewhere different)
+Now two thousand reruns, same model every time.
+    (On screen: fast-forward: dots pile into the histogram from data reruns_hist)
+The same model scored anywhere from 63.2 to 77.4 percent. About 7 in 10 of the reruns
+landed within two points of the truth.
+    (On screen: bracket the central ±2 points, label 68%)
+So both of the researcher's numbers, 70.4 and 72.0, sit comfortably inside the noise of
+a single model. The score is an estimate, and it wobbles.
+    (On screen: draw markers at 70.4 and 72.0 on the histogram, both inside the bracket)
+
+TOOL
+How big is the wobble, without running two thousand reruns? Each question is like a coin
+that comes up correct with probability p.
+One coin has variance p times one minus p. Averaging n coins divides the variance by n.
+So the standard error is the square root of p times one minus p, over n.
+    (On screen: formula panel: SE = sqrt(p(1-p)/n))
+For 72 percent on 500 questions, that is 2.0 points.
+    (On screen: plug in numbers)
+A 95 percent confidence interval is about 1.96 standard errors either side: 68.1 to 75.9
+percent. Last week's 70.4 is well inside it.
+    (On screen: interval bar under the score, 70.4 marked inside)
+Notice the square root. To halve the error bar you need four times as many questions.
+Two thousand questions would bring it down to about one point.
+    (On screen: interval bar shrinks to half as n goes 500 -> 2000)
+One caution for small benchmarks. With 30 questions and 1 correct, the simple formula
+gives an interval that goes below zero, which is nonsense.
+    (On screen: Wald bar for 1/30 pokes through 0)
+The Wilson interval fixes that: 0.6 to 16.7 percent. Honest, and wide. Use Wilson by
+default.
+    (On screen: Wilson bar replaces it, staying above 0)
+When you see a single benchmark score, think: plus or minus the square root of p times
+one minus p over n. About two points at 500 questions.
+    (On screen: cue card)
+
+----------------------------------------------------------------------------------------
+[4:20] 2. Comparing two models: pairing and McNemar, what a p-value means
+----------------------------------------------------------------------------------------
+
+QUESTION
+Concept two. The researcher pushes back.
+"Fine. But model A got 360 of 500 right, model B got 375, same 500 questions. Three
+points. Surely that's real?"
+    (On screen: whiteboard: A 360/500 = 72%, B 375/500 = 75%)
+
+THINK
+Pause and think. How would you decide whether three points is real here? Is there
+anything about this setup you could use?
+    (On screen: countdown card)
+
+NAIVE ANSWER
+The tempting approach: put an error bar on each model and compare. Each has a standard
+error of about two points.
+    (On screen: two intervals side by side, overlapping)
+Combine them and the difference has a standard error of 2.8 points. Three points is
+barely more than one standard error. The p-value is 0.28.
+Verdict: unremarkable. But this analysis treats the two models as if they had answered
+different questions. They didn't.
+
+OBSERVATION
+Line the two models up question by question. Each square is one question.
+    (On screen: 25 x 20 grid of grey squares from items)
+Colour each one. Both right. Both wrong. A right and B wrong. A wrong and B right.
+    (On screen: squares colour by category: both=light grey, neither=dark grey,
+    A_only=red, B_only=navy)
+Now the key question. Which of these squares tell you anything about whether B is better
+than A?
+A question both got right is easy for both. A question both got wrong is hard for both.
+They add to both scores equally and cancel in the difference.
+    (On screen: the 320 both-right and 85 both-wrong squares fade out)
+All of the evidence lives in the 95 questions where they disagree: 40 where A won, 55
+where B won.
+    (On screen: remaining red and navy squares slide into two piles: 40 and 55)
+The unpaired test was charging the comparison for question difficulty, the biggest
+source of noise, which cancels out entirely when you pair.
+
+TOOL
+So ask a simple question. If A and B were equally good, each disagreement would be a
+fair coin flip.
+Flip 95 fair coins. How often do you get a split as lopsided as 55 to 40?
+    (On screen: 95 coin flips animate from data flips, tallies for A and B)
+Here is the distribution of B's wins out of 95, if the coin is fair. Our 55 sits out
+here.
+    (On screen: bar chart null_pmf, shade tails beyond 55 and below 40)
+The shaded tails add up to 0.15. That is McNemar's test. It says a split this lopsided
+happens about 15 percent of the time by chance.
+Compare that with 0.28 from the unpaired test on the same data. Pairing cut the error
+bar on the difference by about a third, for free.
+Still not significant. But run the same comparison on 2,000 questions with the same
+proportions, and McNemar gives 0.002. Same models, same gap. Significance measures your
+evidence, not the size of the effect.
+And what does 0.15 mean, exactly? It is the chance of data at least this extreme if
+there were no difference. It is not the chance that there is no difference.
+    (On screen: two statements, the wrong one crossed out)
+When you see two models on the same questions, think: pair them, and count only the
+disagreements. That only works if your platform stores per-question results.
+    (On screen: cue card)
+
+----------------------------------------------------------------------------------------
+[8:13] 3. The bootstrap, and clustered questions
+----------------------------------------------------------------------------------------
+
+QUESTION
+Concept three. A different team.
+"Our LLM judge scores 200 answers from 1 to 10. The average is 6.63. Can you put an
+error bar on it?"
+    (On screen: dot strip of 200 judge scores, mean line)
+
+THINK
+Pause and think. The coin-flip formula was for pass or fail. What do you do when the
+metric is something else?
+    (On screen: countdown card)
+
+NAIVE ANSWER
+One tempting answer: run the judge again on the same 200 answers and see how much the
+average moves.
+But that only measures the judge's own randomness. It says nothing about how much the
+score would change with a different 200 questions, which is usually the bigger effect.
+Another tempting answer: look for the right formula. For an average there is one. For a
+median, a weighted composite, or a ratio of two metrics, often there isn't.
+
+OBSERVATION
+What we would love is to rerun the whole experiment many times with fresh questions,
+like the two thousand reruns in concept one. We can't. We only have one sample.
+So here is the trick. Pretend our 200 answers are the whole population. Then a fresh
+sample is just 200 draws from them.
+With replacement, so some answers get picked twice and some not at all.
+    (On screen: draw 200 with replacement; highlight duplicates; caption '73 answers
+    left out this time')
+
+TOOL
+Compute the average on that resample. Here it is: 6.53.
+    (On screen: first resample mean 6.83)
+Do it again. And again. Ten thousand times.
+    (On screen: fast-forward: histogram of boot_mean_hist builds up)
+The middle 95 percent of those ten thousand averages runs from 6.37 to 6.88. That is
+your interval. No formula needed.
+    (On screen: shade 2.5th to 97.5th percentiles)
+It is five lines of code, and it works for any metric: you only need the per-item
+results and the function that turns them into a score.
+    (On screen: code panel: for _ in range(10000): idx = rng.integers(0, n, n);
+    stats.append(metric(x[idx])))
+One trap. Resample whatever was sampled independently. If questions come in groups, say
+five questions per reading passage, resample passages, not questions.
+In our example with 40 passages, resampling single questions gives an error bar of 3.3
+points. Resampling passages gives 4.3. The naive version was overconfident.
+    (On screen: two intervals, the passage one wider)
+When you see a metric with no formula, think: bootstrap. Resample the independent units
+ten thousand times and take the middle 95 percent.
+    (On screen: cue card)
+
+----------------------------------------------------------------------------------------
+[11:13] 4. Many benchmarks, many checkpoints: multiple comparisons and Holm
+----------------------------------------------------------------------------------------
+
+QUESTION
+Concept four. A dashboard.
+Every new checkpoint runs on 40 benchmarks. Each cell turns green or red when its change
+versus the last checkpoint has a p-value under 0.05.
+    (On screen: 40-cell grid)
+Today's checkpoint: four cells are lit. "Look, we improved on four benchmarks!"
+    (On screen: light 4 cells from pvals row 0)
+
+THINK
+Pause and think. How excited should they be?
+    (On screen: countdown card)
+
+NAIVE ANSWER
+Each lit cell passed a significance test at 0.05. So each one, on its own, looks like a
+real change.
+Here is the twist. In this simulation, nothing changed. Every checkpoint is the same
+model. Watch twenty checkpoints go by.
+    (On screen: play 20 rows of pvals; cells light where p < 0.05)
+18 of the 20 checkpoints lit up at least one cell. All of them are false alarms.
+
+OBSERVATION
+Why? Each test has a five percent chance of a false alarm. What happens when you run
+forty of them?
+The chance that all forty stay quiet is 0.95 to the power forty, about 13 percent. So 87
+percent of the time, at least one cell lights up by luck.
+    (On screen: formula 1 - 0.95^40 = 0.87)
+On average you expect two lit cells per checkpoint from pure noise. A researcher looking
+for good news will always find some.
+
+TOOL
+The simplest fix is Bonferroni: with 40 tests, require each one to pass at 0.05 divided
+by 40, about 0.001.
+Holm's method is a slightly smarter version. Sort the p-values. Test the smallest at
+0.05 over 40, the next at 0.05 over 39, and so on, stopping at the first failure.
+    (On screen: sorted p-values with stepping threshold)
+Replay the twenty checkpoints with Holm. False alarms drop from 38 lit cells to none.
+    (On screen: replay grid with Holm thresholds)
+For dashboards, Benjamini-Hochberg is often better still: it controls what fraction of
+the lit cells are false, rather than whether any are.
+The bigger fix is design: pick a few decision benchmarks in advance, freeze their
+configs, and show intervals on every cell instead of bare deltas.
+When you see many benchmarks or many checkpoints, think: correct for multiple
+comparisons before you believe a lit cell.
+    (On screen: cue card)
+
+----------------------------------------------------------------------------------------
+[14:17] Outro
+----------------------------------------------------------------------------------------
+That's the pilot. Four ideas: a score is an estimate, pair your comparisons, bootstrap
+anything, and correct for many tests. Each one has a chapter in the field guide.
+If the style works for you, the next videos would cover power and sample size, LLM
+judges and agreement, contamination, and the eval platform itself.
+
+----------------------------------------------------------------------------------------
+REFERENCE: the formulas behind the video (from the Evaluation Field Guide)
+----------------------------------------------------------------------------------------
+
+This page is for the night before. Each line is the tool, when to reach for it, and the number from the book's running example so you can check your memory.
+
+Standard error of a pass rate. √(p(1 − p)/n). At 72 percent on 500 questions: 2.0 points. Halving it takes four times the questions.
+
+95 percent interval. p̂ ± 1.96 SE (Wald) is fine for a few hundred items away from 0 or 100 percent: 68.1 to 75.9 percent. Use Wilson by default (67.9 to 75.8 percent), and always near the extremes: 1 of 30 gives 0.6 to 16.7 percent where Wald gives a negative lower bound. Clopper-Pearson when you need guaranteed coverage.
+
+Bootstrap. Resample the independent units with replacement 10,000 times, recompute the metric, take the 2.5th and 97.5th percentiles. Works for any metric. Resample clusters (passages, repos, environments), not items, when items share them.
+
+Design effect for clustered items. Variance multiplies by 1 + (m − 1)ρ. Five questions per passage at ρ = 0.2: 1.8 times the variance, 1.34 times the error bar.
+
+Comparing two models on the same items. Pair them. McNemar on the discordant counts b and c: exact binomial test of b against b + c at one half. Running example: 40 versus 55 gives p = 0.15, where the unpaired test on the same data gives 0.28. Paired SE of the difference: 1.95 points versus 2.8 unpaired.
+
+Continuous per-item scores. Paired t-test on differences, or paired bootstrap, or permutation test (swap labels within items).
+
+p-value. Probability of data at least this extreme if the null were true. Not the probability the null is true. Says nothing about effect size. Lead with the confidence interval on the difference.
+
+Minimum detectable effect. About 2.8 standard errors of the difference (α = 0.05 two-sided, 80 percent power). Paired with discordance rate r: 2.8 √(r/n). At r = 0.2, detecting 2 points needs about 4,000 items; unpaired at 70 percent accuracy, about 8,000.
+
+pass@k. Generate n > k samples, count c correct, per problem 1 − C(n − c, k)/C(n, k), averaged over problems. n = 20, c = 3: pass@1 0.15, pass@5 0.60. Never 1 − (1 − p)^k across a benchmark. Ask whether people mean pass@k, avg@k or maj@k.
+
+Multiple comparisons. Forty null tests at 0.05: 87 percent chance of at least one false positive. Bonferroni α/m; Holm (sorted, α/m, α/(m − 1), …) is uniformly better; Benjamini-Hochberg (largest i with p₍ᵢ₎ ≤ iq/m) controls the false discovery rate and suits dashboards.
+
+Cohen's kappa. (observed − chance)/(1 − chance). 80 percent agreement with 54.4 percent chance gives 0.56, "moderate". Collapses when one class is rare: 92 percent agreement, kappa 0.29. Report the confusion matrix and per-class recall beside it. Measure human-human agreement first; it is the ceiling.
+
+Bradley-Terry / Elo. P(i beats j) = 1/(1 + e^−(sᵢ − sⱼ)). 400 Elo points = 10:1 odds; 60 percent win rate ≈ 70 points; 55 percent ≈ 35. Fit all votes at once, bootstrap intervals, show rank ranges.
+
+Online tests. Randomise by user, analyse at user level, reduce variance with CUPED, do not peek without a sequential method.

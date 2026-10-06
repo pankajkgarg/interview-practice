@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eval study notes · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1>Eval study notes</h1>
+<p class="lede">The statistics and engineering behind evaluating language models, situation first. Companion to the eval explainer videos, the same way the coding practice set goes with the coding videos.</p>
+<div class="when">
+<b>Start here</b><a href="which-test.html">Which tool, when</a> covers
+the three different things called “p”, where the probability in a
+confidence interval comes from, when to use McNemar, when to use Wilson,
+and one table that maps each situation to its tool.
+</div>
+<h2 id="videos">Videos</h2>
+<div class="card">
+<h3>
+Pilot: eval statistics in four ideas (14:50)
+</h3>
+<p>
+<a href="https://drive.google.com/file/d/1VIIvCtqnyxxvy1k036hx0RXDWol578zc/view">Watch
+on Google Drive</a> (private to the owner) ·
+<a href="videos/eval-stats-pilot-context.txt">Context file</a>: the
+whole narration plus what is on screen, as one text file. Attach it to a
+chat with Claude or ChatGPT and ask about any part.
+</p>
+<ul class="toc">
+<li>
+<span class="ts">0:31</span> 1. A benchmark score is an estimate:
+standard error, confidence interval, Wilson. <a href="ch07.html">Read
+more</a>
+</li>
+<li>
+<span class="ts">4:20</span> 2. Comparing two models: pairing, McNemar,
+what a p-value means. <a href="ch08.html">Read more</a>
+</li>
+<li>
+<span class="ts">8:13</span> 3. The bootstrap, and questions that come
+in groups.
+<a href="ch07.html#the-bootstrap-for-everything-that-is-not-a-pass-rate">Read
+more</a>
+</li>
+<li>
+<span class="ts">11:13</span> 4. Many benchmarks, many checkpoints:
+multiple comparisons. <a href="ch10.html">Read more</a>
+</li>
+</ul>
+</div>
+<h2 id="statistics-behind-an-eval-number">Statistics behind an eval
+number</h2>
+<ol class="toc" start="7">
+<li>
+<a href="ch07.html">A score is an estimate</a>: how precise is one
+number?
+</li>
+<li>
+<a href="ch08.html">Comparing two models</a>: is the gap real?
+</li>
+<li>
+<a href="ch09.html">Power, sample size, pass@k</a>: can this benchmark
+detect the change at all?
+</li>
+<li>
+<a href="ch10.html">Many comparisons</a>: which of fifty movements are
+real?
+</li>
+<li>
+<a href="ch11.html">Judges, agreement, rankings</a>: can you trust the
+grader?
+</li>
+<li>
+<a href="ch12.html">Benchmarks wear out</a>: contamination, saturation,
+online tests
+</li>
+</ol>
+<p>
+<a href="formulas.html">All the formulas on one page</a>
+</p>
+<h2 id="engineering-an-eval-platform">Engineering an eval platform</h2>
+<ol class="toc">
+<li>
+<a href="ch01.html">What evals are for</a>
+</li>
+<li>
+<a href="ch02.html">Anatomy of an eval</a>
+</li>
+<li>
+<a href="ch03.html">Graders</a>
+</li>
+<li>
+<a href="ch04.html">Throughput and scheduling</a>
+</li>
+<li>
+<a href="ch05.html">Degradation and on-call</a>
+</li>
+<li>
+<a href="ch06.html">Designing an eval platform</a>
+</li>
+</ol>
+
+
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>

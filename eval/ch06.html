@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Designing an eval platform · Eval study notes</title>
+<style>:root{--bg:#fbfaf7;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e4e2dc;--accent:#2563eb;--soft:#eef3fe;--code:#f3f2ee}
+@media (prefers-color-scheme: dark){:root{--bg:#141416;--card:#1e1e22;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#60a5fa;--soft:#1a2436;--code:#25252a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 80px}
+a{color:var(--accent)}
+.crumb{font-size:14px;color:var(--muted);margin:0 0 18px}.crumb a{text-decoration:none}
+h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+h2{font-size:22px;margin:34px 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:24px 0 6px}
+.lede{color:var(--muted);font-size:18px;margin:0 0 18px}
+.when{background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 22px}
+.when b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.three>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px}
+.three b{display:block;margin-bottom:4px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:14px 0}
+.card h3{margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0;display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+pre{background:var(--code);padding:12px 14px;border-radius:10px;overflow-x:auto;font-size:14px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:20px 0}figure img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+ol.toc,ul.toc{padding-left:20px}ol.toc li,ul.toc li{margin:5px 0}
+.ts{font-variant-numeric:tabular-nums;color:var(--muted);display:inline-block;min-width:3.4em}
+nav.pn{display:flex;justify-content:space-between;gap:12px;margin:40px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:15px}
+nav.pn a{text-decoration:none}
+footer{color:var(--muted);font-size:13px;margin-top:30px}
+</style></head>
+<body><div class="wrap">
+<p class="crumb"><a href="index.html">Eval study notes</a> · <a href="../">Coding practice set</a></p>
+<h1 id="design-an-evaluation-platform-the-answer-assembled">“Design an
+evaluation platform”: the answer, assembled</h1>
+<div class="when"><b>Use this when</b>You are asked to design an eval platform end to end, in a design interview or for real.</div>
+<p>The most likely design question for an eval platform role is some
+version of “design the evaluation platform for a lab training frontier
+models”. Chapters 1 to 5 contain every piece of the answer; this chapter
+puts them in the order you would actually say them in a 45-minute design
+interview, so that the structure is rehearsed and you can spend the
+interview on judgement rather than on remembering what comes next.</p>
+<h2 id="minute-0-to-5-requirements-by-asking-about-decisions">Minute 0
+to 5: requirements, by asking about decisions</h2>
+<p>Strong design answers start by asking who the users are and what
+decisions they make, because that sets every later trade-off. For an
+eval platform the questions are: which teams consume results
+(pretraining, post-training and RL, release, product); how many
+checkpoints per day and of what model sizes; how many benchmarks and of
+what types (likelihood, generative, code execution, judge-graded,
+agentic, human); what freshness each tier needs; how much GPU capacity
+is dedicated versus borrowed; and what reproducibility contract
+researchers expect.</p>
+<p>Then state assumptions out loud if the interviewer does not supply
+them. A reasonable set: two or three concurrent large runs writing
+checkpoints every one to two hours, hundreds of small ablation runs per
+week, around 100 benchmarks in three tiers, from a cheap likelihood
+suite that must keep pace with checkpoints, through a generative suite
+for post-training checkpoints, to a full promotion suite with agentic
+and judge-graded tasks. Name the service-level objectives per tier, for
+example in-training suite results within one hour of a checkpoint and
+the full suite within a working day. Saying “the SLO is
+checkpoint-to-dashboard latency per tier” early signals that you think
+about the platform as a production service.</p>
+<h2 id="minute-5-to-15-the-high-level-design">Minute 5 to 15: the
+high-level design</h2>
+<p>Draw the boxes from Chapter 2 and walk left to right. Versioned
+problem sets with stable item ids and metadata. Benchmark configs as
+validated, hashed data. An eval orchestrator that subscribes to
+checkpoint events from training (or is called by the training job’s
+hooks), expands a checkpoint into the set of eval jobs its tier
+requires, and submits them to the scheduler with priorities. Inference
+workers that load a checkpoint once and serve many benchmarks against
+it. A grader pool separated from generation: CPU workers for extraction
+and matching, a sandbox fleet for code and agent tasks, and a judge
+service with pinned judge models. A generation cache keyed by request
+hash. A per-item results store with full lineage. An analysis layer that
+computes intervals, paired comparisons and corrected significance, and
+serves dashboards, alerts and notebook access.</p>
+<p>Keep this part brisk. The interviewer wants to see that you know the
+components exist; the marks are in the deep dives.</p>
+<h2 id="minute-15-to-35-deep-dives-chosen-to-match-the-role">Minute 15
+to 35: deep dives, chosen to match the role</h2>
+<p>Offer two or three deep dives and let the interviewer pick, but be
+ready to drive if they do not. For an eval platform role the three with
+the most signal are scheduling and throughput, grader reliability, and
+detecting degradation.</p>
+<p>For scheduling and throughput, cover where time goes (start-up,
+prefill, decode, long tail, grading) and the fixes from Chapter 4: one
+model load per checkpoint across many benchmarks, saturating continuous
+batching, prefix caching for few-shot prompts, replicas over tensor
+parallelism for throughput, longest-first ordering and length caps with
+truncation recorded, streaming to graders, and generation caching. Then
+the cluster policy: tiers mapped to priorities, preemptible jobs that
+resume from per-item progress, fair share between teams, and a quick
+back-of-envelope sizing for the generative tier.</p>
+<p>For grader reliability, the five habits from Chapter 3: version
+graders and record the version per result; unit-test extractors and
+judges on real hard cases; separate infrastructure errors from wrong
+answers; run known-answer canaries and gold solutions; and re-grade
+stored generations before rolling out a grader change. Mention that in
+RL the same graders compute rewards, so their bugs become reward
+hacking, and that judge graders need calibration sets with human labels
+and tracked agreement.</p>
+<p>For degradation, the detector set from Chapter 5: a pinned reference
+model through the same pipeline, per-run health metrics (completion,
+error, truncation and extraction-failure rates), noise-aware anomaly
+detection with multiple-comparison discipline, and lineage diffs, with
+the triage order completeness, lineage, reference model, statistics,
+model.</p>
+<p>Weave in the statistics where they change a design decision, not as a
+lecture. Per-item storage exists because paired tests need it. Benchmark
+tiers exist partly because small benchmarks cannot detect small effects,
+so they belong in trend-spotting, not promotion decisions. The dashboard
+shows intervals and corrected significance because forty uncorrected
+cells guarantee false alarms.</p>
+<figure>
+<img src="img/fig-6-1.png" alt="A time budget for the design interview, so the deep dives get the minutes they deserve.">
+<figcaption>
+Figure 6.1. A time budget for the design interview, so the deep dives
+get the minutes they deserve.
+</figcaption>
+</figure>
+<h2 id="minute-35-to-42-trade-offs-and-evolution">Minute 35 to 42:
+trade-offs and evolution</h2>
+<p>Close with the decisions you would revisit and why, because this is
+where principal-level judgement shows. Dedicated eval capacity versus
+borrowed capacity, and how you would measure which is cheaper given idle
+time and preemption cost. Building on an open framework
+(lm-evaluation-harness, Inspect) versus an internal one: open frameworks
+give researchers familiar task definitions and community benchmarks,
+internal ones give control over scheduling, lineage and scale; a common
+pattern is internal orchestration and storage with adapters that run
+open-framework task definitions. Determinism versus throughput:
+batch-invariant kernels make greedy decoding reproducible at some speed
+cost, and the right choice may differ between the promotion tier and the
+trend-spotting tier. Breadth of benchmarks versus statistical power on
+each. And a sequencing plan: what you would build in the first ninety
+days (lineage, per-item storage and a reference-model canary are
+high-value and cheap) versus later (IRT-selected subsets, automated
+contamination checks, a benchmark-health dashboard).</p>
+<h2 id="what-to-take-from-this-chapter">What to take from this
+chapter</h2>
+<p>Run the design interview as requirements (consumers, decisions,
+tiers, SLOs), high-level boxes, two or three deep dives chosen for the
+role (scheduling and throughput, grader reliability, degradation
+detection), then trade-offs and a ninety-day plan. Use the statistics
+only where they change a design decision.</p>
+
+<nav class="pn"><a href="ch05.html">← Degradation and on-call</a><a href="ch07.html">A score is an estimate →</a></nav>
+<footer>Adapted from the <em>Evaluation Field Guide</em> (October 2026). Numbers in the statistics chapters come from simulations made for the book.</footer>
+</div></body></html>
