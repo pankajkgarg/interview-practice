@@ -1,7 +1,9 @@
 # Interview practice set
 
 Coding-interview practice problems grouped by pattern, with LeetCode links and a
-progress tracker that saves in your browser.
+progress tracker that saves in your browser. To carry progress to another
+device use "Copy progress link" (the solved set is encoded in the URL fragment)
+or export/import a small JSON file; imports merge, they never remove ticks.
 
 Live page: https://pankajkgarg.github.io/interview-practice/
 

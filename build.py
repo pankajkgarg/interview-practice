@@ -57,6 +57,9 @@ li.done a{color:var(--done);text-decoration:line-through}
 footer{color:var(--muted);font-size:13px;margin-top:30px}
 footer a{color:var(--accent)}
 .hidden{display:none}
+.sync{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:10px 0 18px;font-size:13px;color:var(--mute)}
+.sync .lnk{background:none;border:0;padding:0;color:var(--acc);font:inherit;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.sync .msg{font-size:12px;color:var(--mute)}
 @media (max-width:520px){.tag.src{display:none}}
 </style>
 </head>
@@ -64,7 +67,7 @@ footer a{color:var(--accent)}
 <div class="wrap">
 <header>
 <h1>Interview practice set</h1>
-<p>Problems grouped by the same patterns as the <em>Coding Interview Refresher</em> book and video. Every problem links to LeetCode. Tick a box when you have solved it from a blank file; progress is saved in this browser.</p>
+<p>Problems grouped by the same patterns as the <em>Coding Interview Refresher</em> book and video. Every problem links to LeetCode. Tick a box when you have solved it from a blank file; progress is saved in this browser, and the sync links below carry it to another device.</p>
 <p><a href="eval/">Eval study notes</a>: the statistics and engineering of LLM evaluation, with the eval explainer videos.</p>
 </header>
 
@@ -78,6 +81,14 @@ footer a{color:var(--accent)}
  <button class="chip" data-d="M">Medium</button>
  <button class="chip" data-d="H">Hard</button>
  <span class="prog" id="prog"></span>
+</div>
+<div class="sync">
+ <span class="lbl">Sync across devices:</span>
+ <button class="lnk" id="copylink">Copy progress link</button>
+ <button class="lnk" id="export">Export file</button>
+ <button class="lnk" id="import">Import file</button>
+ <input type="file" id="importfile" accept="application/json,.json" hidden>
+ <span class="msg" id="msg"></span>
 </div>
 
 <nav class="toc" id="toc"></nav>
@@ -121,6 +132,87 @@ footer a{color:var(--accent)}
   s.innerHTML = h; root.appendChild(s);
  });
 
+ // ---- progress sync: a URL fragment "#p=<base64url bitmask>" or a JSON file ----
+ var order = [];
+ data.forEach(function(sec){ sec.problems.forEach(function(p){ order.push(String(p.n)); }); });
+ var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+ function save(){ try { localStorage.setItem(KEY, JSON.stringify(done)); } catch(err) {} }
+ function solvedList(){ return Object.keys(done).filter(function(n){ return done[n]; }).map(Number).sort(function(a,b){return a-b;}); }
+ function encode(){
+  var bytes = [], i, j;
+  for (i = 0; i < order.length; i += 8) {
+   var b = 0;
+   for (j = 0; j < 8 && i + j < order.length; j++) if (done[order[i+j]]) b |= (1 << j);
+   bytes.push(b);
+  }
+  while (bytes.length && bytes[bytes.length-1] === 0) bytes.pop();
+  var out = '', k;
+  for (k = 0; k < bytes.length; k += 3) {
+   var n = (bytes[k] << 16) | ((bytes[k+1] || 0) << 8) | (bytes[k+2] || 0);
+   out += B64[(n >> 18) & 63] + B64[(n >> 12) & 63];
+   if (k + 1 < bytes.length) out += B64[(n >> 6) & 63];
+   if (k + 2 < bytes.length) out += B64[n & 63];
+  }
+  return out;
+ }
+ function decode(str){
+  var bytes = [], buf = 0, bits = 0, i, v, list = [];
+  for (i = 0; i < str.length; i++) {
+   v = B64.indexOf(str[i]); if (v < 0) continue;
+   buf = (buf << 6) | v; bits += 6;
+   if (bits >= 8) { bits -= 8; bytes.push((buf >> bits) & 255); }
+  }
+  bytes.forEach(function(b, bi){ for (var j = 0; j < 8; j++) if ((b >> j) & 1) { var n = order[bi*8+j]; if (n) list.push(n); } });
+  return list;
+ }
+ function merge(list){
+  var added = 0;
+  list.forEach(function(n){ n = String(n); if (order.indexOf(n) >= 0 && !done[n]) { done[n] = 1; added++; } });
+  if (added) save();
+  return added;
+ }
+ var msgEl = document.getElementById('msg'), msgT;
+ function msg(t){ msgEl.textContent = t; clearTimeout(msgT); msgT = setTimeout(function(){ msgEl.textContent = ''; }, 6000); }
+ function progressLink(){
+  var base = location.href.split('#')[0];
+  return base + '#p=' + encode();
+ }
+ var m = /[#&]p=([A-Za-z0-9_-]*)/.exec(location.hash);
+ if (m) {
+  var added = merge(decode(m[1]));
+  msg(added ? 'Imported ' + added + ' solved problem' + (added === 1 ? '' : 's') + ' from the link.' : 'Link opened; nothing new to import.');
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(err) {}
+ }
+ document.getElementById('copylink').addEventListener('click', function(){
+  var link = progressLink(), n = solvedList().length;
+  function ok(){ msg('Link copied (' + n + ' solved). Open it on the other device.'); }
+  function fallback(){ window.prompt('Copy this link and open it on the other device:', link); }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(ok, fallback); else fallback();
+ });
+ document.getElementById('export').addEventListener('click', function(){
+  var list = solvedList();
+  var blob = new Blob([JSON.stringify({version: 1, exported: new Date().toISOString(), solved: list}, null, 1)], {type: 'application/json'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'interview-practice-progress.json'; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  msg('Exported ' + list.length + ' solved.');
+ });
+ document.getElementById('import').addEventListener('click', function(){ document.getElementById('importfile').click(); });
+ document.getElementById('importfile').addEventListener('change', function(e){
+  var f = e.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(){
+   try {
+    var obj = JSON.parse(r.result), list = Array.isArray(obj) ? obj : (obj.solved || []);
+    var added = merge(list);
+    msg('Imported ' + added + ' new solved problem' + (added === 1 ? '' : 's') + ' (' + list.length + ' in file).');
+    render();
+   } catch(err) { msg('That file is not a progress export.'); }
+   e.target.value = '';
+  };
+  r.readAsText(f);
+ });
+
  var items = Array.prototype.slice.call(document.querySelectorAll('li'));
  function render(){
   var shown = 0, solved = 0;
@@ -143,7 +235,7 @@ footer a{color:var(--accent)}
   if (e.target.type !== 'checkbox') return;
   var n = e.target.closest('li').getAttribute('data-n');
   if (e.target.checked) done[n] = 1; else delete done[n];
-  try { localStorage.setItem(KEY, JSON.stringify(done)); } catch(err) {}
+  save();
   render();
  });
  document.querySelectorAll('.chip[data-f]').forEach(function(b){
@@ -187,5 +279,6 @@ Files:
 - `problems.json`: the same data, for other tools.
 - `problems.py` + `build.py`: edit the Python list and run `python3 build.py` to regenerate both.
 """
-open("README.md", "w").write(readme)
+import os
+if not os.path.exists("README.md"): open("README.md", "w").write(readme)  # README is hand-maintained once it exists
 print("ok", len(open("index.html").read()))
